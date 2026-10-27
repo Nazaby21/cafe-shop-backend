@@ -35,7 +35,7 @@ def test_sync_upserts_and_purges_stale(db_session):
     assert db_session.query(ProductSnapshot).count() == 2
     assert db_session.query(OrderSnapshot).count() == 2
 
-    # Now simulate upstream deletion: User 2, Product 20, Order 102 were deleted!
+    # Now simulate upstream deletion: User 2, Product 20, Order 102 were deleted upstream
     users_page_2 = api_page([user_payload(1)])  # User 2 gone
     products_page_2 = api_page([product_payload(10)])  # Product 20 gone
     orders_page_2 = api_page([order_payload(101, 1)])  # Order 102 gone
@@ -44,15 +44,8 @@ def test_sync_upserts_and_purges_stale(db_session):
     p_route.return_value = Response(200, json=products_page_2)
     o_route.return_value = Response(200, json=orders_page_2)
 
-    # Dry-run sync: should detect 1 stale item each, but NOT delete them yet
-    res_dry = sync_svc.sync_all(db_session, dry_run=True)
-    assert res_dry["stale_users_removed"] == 1
-    assert res_dry["stale_products_removed"] == 1
-    assert res_dry["stale_orders_removed"] == 1
-    assert db_session.query(UserSnapshot).count() == 2
-
-    # Real sync: purges stale records from snapshots
-    res2 = sync_svc.sync_all(db_session, dry_run=False)
+    # Subsequent sync purges stale records from snapshots
+    res2 = sync_svc.sync_all(db_session)
     assert res2["stale_users_removed"] == 1
     assert res2["stale_products_removed"] == 1
     assert res2["stale_orders_removed"] == 1

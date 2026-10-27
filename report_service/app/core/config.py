@@ -36,7 +36,6 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     SERVICE_TOKEN_EXPIRE_MINUTES: int = 5
 
-    SYNC_ON_STARTUP: bool = False
     SYNC_PAGE_SIZE: int = 100
 
     CORS_ORIGINS: Annotated[list[str], NoDecode] = ["*"]
