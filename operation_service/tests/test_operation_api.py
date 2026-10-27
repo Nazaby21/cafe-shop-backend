@@ -1,6 +1,5 @@
 from decimal import Decimal
 
-from app.core.config import settings
 from app.models.category import Category
 from app.models.product import Product
 from coffee_testing import TEST_NAME_PREFIX, auth_header
@@ -29,7 +28,7 @@ def test_list_products_public(client, db_session):
     assert len(data["data"]["items"]) >= 1
 
 
-def test_create_order_and_pay(client, db_session):
+def test_unconfigured_payment_gateway_returns_503(client, db_session):
     cat = Category(name=f"{TEST_NAME_PREFIX}Tea", description="Tea category")
     db_session.add(cat)
     db_session.flush()
@@ -53,30 +52,20 @@ def test_create_order_and_pay(client, db_session):
         json={"items": [{"product_id": prod.id, "quantity": 2}]},
     )
     assert order_res.status_code == 200
-    order_data = order_res.json()["data"]
-    order_id = order_data["id"]
-    assert order_data["status"] == "pending"
+    order_id = order_res.json()["data"]["id"]
 
-    # Verify stock decremented
-    db_session.refresh(prod)
-    assert prod.stock_quantity == 18
-
-    # Pay for order
+    # Direct customer checkout returns 503 until an external gateway provider is integrated
     pay_res = client.post(
         f"/order/{order_id}/payment",
         headers=customer_headers,
         json={"method": "card"},
     )
-    assert pay_res.status_code == 200
-    assert pay_res.json()["data"]["status"] == "success"
-
-    # Order status advanced to paid
-    get_order = client.get(f"/order/{order_id}", headers=customer_headers)
-    assert get_order.json()["data"]["status"] == "paid"
+    assert pay_res.status_code == 503
+    assert "not configured" in pay_res.json()["message"]
 
 
-def test_simulated_payment_blocked_in_production(client, db_session, monkeypatch):
-    cat = Category(name=f"{TEST_NAME_PREFIX}Snacks", description="Snacks")
+def test_order_creation_and_staff_advances_status_to_paid(client, db_session):
+    cat = Category(name=f"{TEST_NAME_PREFIX}Pastries", description="Pastries")
     db_session.add(cat)
     db_session.flush()
 
@@ -95,18 +84,25 @@ def test_simulated_payment_blocked_in_production(client, db_session, monkeypatch
     order_res = client.post(
         "/order",
         headers=customer_headers,
-        json={"items": [{"product_id": prod.id, "quantity": 1}]},
+        json={"items": [{"product_id": prod.id, "quantity": 2}]},
     )
     order_id = order_res.json()["data"]["id"]
+    assert order_res.json()["data"]["status"] == "pending"
 
-    # Switch environment to production
-    monkeypatch.setattr(settings, "ENVIRONMENT", "production")
-    monkeypatch.setattr(settings, "ALLOW_SIMULATED_PAYMENTS_IN_PROD", False)
+    # Verify inventory was decremented
+    db_session.refresh(prod)
+    assert prod.stock_quantity == 13
 
-    pay_res = client.post(
-        f"/order/{order_id}/payment",
-        headers=customer_headers,
-        json={"method": "card"},
+    # Staff verifies payment and advances status to paid
+    staff_headers = auth_header(sub=2, role="staff")
+    status_res = client.patch(
+        f"/order/{order_id}/status",
+        headers=staff_headers,
+        json={"status": "paid"},
     )
-    assert pay_res.status_code == 402  # PaymentRequired / PaymentFailed
-    assert "disabled in production" in pay_res.json()["message"]
+    assert status_res.status_code == 200
+    assert status_res.json()["data"]["status"] == "paid"
+
+    # Order is now paid
+    get_res = client.get(f"/order/{order_id}", headers=customer_headers)
+    assert get_res.json()["data"]["status"] == "paid"

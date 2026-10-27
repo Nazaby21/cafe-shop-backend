@@ -34,9 +34,6 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = Field(min_length=1)
     JWT_ALGORITHM: str = "HS256"
 
-    # Payment gateway configuration
-    ALLOW_SIMULATED_PAYMENTS_IN_PROD: bool = False
-
     CORS_ORIGINS: Annotated[list[str], NoDecode] = ["*"]
 
     @field_validator("CORS_ORIGINS", mode="before")

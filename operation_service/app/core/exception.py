@@ -143,3 +143,15 @@ class OrderNotPayable(ApplicationError):
 class PaymentFailed(ApplicationError):
     def __init__(self, reason: str = "Payment processing failed"):
         super().__init__(message=reason, error_code="err_402_payment_failed", status_code=HTTPStatus.PAYMENT_REQUIRED)
+
+
+class PaymentGatewayNotConfigured(ApplicationError):
+    def __init__(
+        self,
+        message: str = "Online card payment gateway integration is not configured. Payments can be processed by staff.",
+    ):
+        super().__init__(
+            message=message,
+            error_code="err_503_payment_gateway_unavailable",
+            status_code=HTTPStatus.SERVICE_UNAVAILABLE,
+        )

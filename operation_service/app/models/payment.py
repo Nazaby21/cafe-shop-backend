@@ -33,8 +33,7 @@ class Payment(Base):
     amount: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
     method: Mapped[str] = mapped_column(String(20), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default=PaymentStatus.PENDING)
-    # Simulated gateway reference number - stands in for a real payment
-    # provider's transaction id in this coursework-scale implementation.
+    # Gateway reference or transaction identifier.
     transaction_ref: Mapped[str] = mapped_column(String(64), nullable=False)
     failure_reason: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
