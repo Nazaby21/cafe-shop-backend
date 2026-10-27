@@ -1,0 +1,48 @@
+### Coffee Shop - Report Service manual test requests
+### Run `uvicorn app.main:app --reload --port 8003` from report_service/ first.
+### Every endpoint here requires an admin/staff access token issued by user_service.
+
+@baseUrl = http://127.0.0.1:8003
+@adminToken = REPLACE_WITH_ADMIN_OR_STAFF_ACCESS_TOKEN
+
+### Manually pull the latest users/products/orders from user_service +
+### operation_service into report_service's own database. Run this first if
+### reports look empty (e.g. right after starting all three services).
+POST {{baseUrl}}/report/sync
+Authorization: Bearer {{adminToken}}
+
+###
+
+### Sales summary (defaults to trailing 30 days if no dates given)
+GET {{baseUrl}}/report/sales-summary?start_date=2026-01-01&end_date=2026-12-31
+Authorization: Bearer {{adminToken}}
+
+###
+
+### Daily sales breakdown
+GET {{baseUrl}}/report/daily-sales?start_date=2026-01-01&end_date=2026-12-31
+Authorization: Bearer {{adminToken}}
+
+###
+
+### Top selling products
+GET {{baseUrl}}/report/top-products?start_date=2026-01-01&end_date=2026-12-31&limit=5
+Authorization: Bearer {{adminToken}}
+
+###
+
+### Low stock alerts
+GET {{baseUrl}}/report/low-stock?threshold=10
+Authorization: Bearer {{adminToken}}
+
+###
+
+### User signup / role summary
+GET {{baseUrl}}/report/users-summary?start_date=2026-01-01&end_date=2026-12-31
+Authorization: Bearer {{adminToken}}
+
+###
+
+### Customer token -> 403 Forbidden (reports are staff/admin only)
+GET {{baseUrl}}/report/sales-summary
+Authorization: Bearer REPLACE_WITH_CUSTOMER_ACCESS_TOKEN
