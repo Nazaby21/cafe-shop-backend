@@ -1,4 +1,10 @@
+import os
 import pytest
+
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("JWT_SECRET_KEY", "dev-only-shared-secret-change-me")
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
