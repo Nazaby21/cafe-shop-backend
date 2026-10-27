@@ -6,7 +6,7 @@ NEVER import this package from application code (``*/app/**``). It is put on
 ``pytest.ini``), and the CI mock-data check skips ``libs/testing/``.
 
 Test-data marker convention (used by seed + cleanup scripts too):
-  * users:     email domain ``@example.test`` (RFC 2606 reserved, never deliverable)
+  * users:     email prefix ``test_``, domain ``example.com``
   * products:  name prefix ``[TEST] ``
   * categories: name prefix ``[TEST] ``
 """
@@ -17,14 +17,16 @@ from typing import Any
 
 import jwt
 
-TEST_EMAIL_DOMAIN = "example.test"
+TEST_EMAIL_DOMAIN = "example.com"
 TEST_NAME_PREFIX = "[TEST] "
-TEST_JWT_SECRET = "pytest-only-secret-0123456789abcdef0123456789"
+# Matches the dev environment JWT secret key used in local testing
+TEST_JWT_SECRET = "dev-only-shared-secret-change-me"
 TEST_JWT_ALGORITHM = "HS256"
 
 
 def marked_email(local_part: str) -> str:
-    return f"{local_part}@{TEST_EMAIL_DOMAIN}"
+    clean_local = local_part.removeprefix("test_")
+    return f"test_{clean_local}@{TEST_EMAIL_DOMAIN}"
 
 
 def make_token(

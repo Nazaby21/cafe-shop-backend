@@ -1,4 +1,4 @@
-from fastapi import Request, APIRouter
+from fastapi import Request
 from fastapi.responses import JSONResponse
 
 from app.core.exception import ApplicationError
