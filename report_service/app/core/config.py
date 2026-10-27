@@ -1,38 +1,78 @@
-from dotenv import load_dotenv
-import os
+"""
+Typed settings loaded from environment variables (and an optional local
+``.env`` file, which is git-ignored - copy ``.env.example``).
+"""
+from typing import Annotated, Literal
 
-load_dotenv()
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+Environment = Literal["local", "dev", "staging", "production", "test"]
+
+_KNOWN_WEAK_SECRETS = {
+    ("change" + "-me-in-production"),
+    ("change" + "-me-to-a-long-random-secret"),
+    "dev-only-shared-secret-change-me",
+}
+_MIN_PRODUCTION_SECRET_LENGTH = 32
 
 
-class Settings:
-    # report_service now owns its own database (report_service_db), same as
-    # user_service and operation_service each own theirs. It never connects
-    # directly to the other two services' databases.
-    DB_HOST = os.getenv("DB_HOST")
-    DB_PORT = os.getenv("DB_PORT")
-    DB_NAME = os.getenv("DB_NAME")
-    DB_USER = os.getenv("DB_USER")
-    DB_PASSWORD = os.getenv("DB_PASSWORD")
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    # Base URLs used only by the sync job to pull data over HTTP from the
-    # other two services - this is the only inter-service communication in
-    # the whole system, and it is one-directional (report_service -> others).
-    USER_SERVICE_BASE_URL = os.getenv("USER_SERVICE_BASE_URL", "http://127.0.0.1:8001")
-    OPERATION_SERVICE_BASE_URL = os.getenv("OPERATION_SERVICE_BASE_URL", "http://127.0.0.1:8002")
+    ENVIRONMENT: Environment = "local"
 
-    # Must match user_service's JWT_SECRET_KEY / JWT_ALGORITHM exactly:
-    # - used to verify tokens presented by end users hitting /report/* endpoints
-    # - also used by report_service itself to mint a short-lived internal
-    #   "service account" token (role=admin) when calling user_service /
-    #   operation_service during a sync
-    JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "change-me-in-production")
-    JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
-    SERVICE_TOKEN_EXPIRE_MINUTES = int(os.getenv("SERVICE_TOKEN_EXPIRE_MINUTES", "5"))
+    DATABASE_URL: str | None = None
+    DB_HOST: str = "localhost"
+    DB_PORT: int = 5432
+    DB_NAME: str | None = None
+    DB_USER: str | None = None
+    DB_PASSWORD: str | None = None
 
-    CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
+    USER_SERVICE_BASE_URL: str = "http://127.0.0.1:8001"
+    OPERATION_SERVICE_BASE_URL: str = "http://127.0.0.1:8002"
 
-    SYNC_ON_STARTUP = os.getenv("SYNC_ON_STARTUP", "true").lower() == "true"
-    SYNC_PAGE_SIZE = int(os.getenv("SYNC_PAGE_SIZE", "100"))
+    JWT_SECRET_KEY: str = Field(min_length=1)
+    JWT_ALGORITHM: str = "HS256"
+    SERVICE_TOKEN_EXPIRE_MINUTES: int = 5
+
+    SYNC_ON_STARTUP: bool = False
+    SYNC_PAGE_SIZE: int = 100
+
+    CORS_ORIGINS: Annotated[list[str], NoDecode] = ["*"]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def _split_origins(cls, value):
+        if isinstance(value, str):
+            return [o.strip() for o in value.split(",") if o.strip()]
+        return value
+
+    @model_validator(mode="after")
+    def _check(self):
+        if self.DATABASE_URL is None and not (self.DB_NAME and self.DB_USER and self.DB_PASSWORD is not None):
+            raise ValueError("Set DATABASE_URL, or DB_NAME / DB_USER / DB_PASSWORD")
+        if self.is_production and (
+            self.JWT_SECRET_KEY in _KNOWN_WEAK_SECRETS or len(self.JWT_SECRET_KEY) < _MIN_PRODUCTION_SECRET_LENGTH
+        ):
+            raise ValueError(
+                f"JWT_SECRET_KEY is a known placeholder or shorter than {_MIN_PRODUCTION_SECRET_LENGTH} chars; "
+                "refusing to start with ENVIRONMENT=production"
+            )
+        return self
+
+    @property
+    def is_production(self) -> bool:
+        return self.ENVIRONMENT == "production"
+
+    @property
+    def database_url(self) -> str:
+        if self.DATABASE_URL:
+            return self.DATABASE_URL
+        return (
+            f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
 
 
 settings = Settings()
