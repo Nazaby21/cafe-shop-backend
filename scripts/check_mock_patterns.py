@@ -30,7 +30,7 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 }
 
 # Path segments / suffixes where sample data is legitimate.
-EXCLUDED_DIRS = {"tests", "docs", ".venv", "node_modules", ".idea", ".github"}
+EXCLUDED_DIRS = {"tests", "docs", "scripts", ".venv", "node_modules", ".idea", ".github"}
 EXCLUDED_PREFIXES = ("libs/testing/",)
 EXCLUDED_FILES = {"scripts/check_mock_patterns.py", ".pre-commit-config.yaml"}
 EXCLUDED_SUFFIXES = {".md", ".pyc", ".png", ".jpg", ".ico", ".lock"}

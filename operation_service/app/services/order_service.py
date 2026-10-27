@@ -9,7 +9,7 @@ from app.core.exception import (
     ProductInactive,
     ProductNotFound,
 )
-from app.models.order import Order, OrderItem, OrderStatus
+from app.models.order import Order, OrderItem, OrderItemCustomization, OrderStatus
 from app.models.stock_movement import StockMovementReason
 from app.repository import order_repository as order_repo
 from app.repository import product_repository as product_repo
@@ -55,7 +55,7 @@ class OrderService:
                 )
 
                 unit_price = float(product.price)
-                
+
                 # Fetch customizations to add to price
                 item_customizations = []
                 if item.customizations:
@@ -88,7 +88,7 @@ class OrderService:
                 )
                 if item_customizations:
                     order_item.customizations.extend(item_customizations)
-                    
+
                 db.add(order_item)
 
             order.total_amount = total_amount

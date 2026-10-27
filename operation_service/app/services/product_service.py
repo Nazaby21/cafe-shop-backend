@@ -24,7 +24,7 @@ class ProductService:
         existing = product_repo.get_by_name(db, request.name)
         if existing:
             raise ProductNameAlreadyExists(request.name)
-            
+
         category = self.category_repo.get_by_id(db, request.category_id)
         if not category:
             raise CategoryNotFound(request.category_id)
@@ -89,7 +89,7 @@ class ProductService:
             existing = product_repo.get_by_name(db, request.name)
             if existing:
                 raise ProductNameAlreadyExists(request.name)
-                
+
         category = self.category_repo.get_by_id(db, request.category_id)
         if not category:
             raise CategoryNotFound(request.category_id)

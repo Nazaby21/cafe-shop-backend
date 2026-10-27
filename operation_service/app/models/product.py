@@ -14,7 +14,7 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(255), nullable=False, unique=True, index=True)
     description: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     price: Mapped[float] = mapped_column(Numeric(10, 2), nullable=False)
-    
+
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"), nullable=False)
     category: Mapped["Category"] = relationship("Category", back_populates="products", lazy="selectin")
 
