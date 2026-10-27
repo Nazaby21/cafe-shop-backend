@@ -1,0 +1,28 @@
+# Secrets / local config - copy the matching .env.example instead
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Local DB files created by tests / tools
+*.db
+*.sqlite3
+
+# Backups written by scripts/cleanup_test_data.py (contain personal data)
+backups/
+
+# IDE
+.idea/workspace.xml
+.idea/dataSources/
+.idea/dataSources.local.xml
+.idea/shelf/
+.vscode/
