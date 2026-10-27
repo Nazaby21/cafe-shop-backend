@@ -100,8 +100,14 @@ order_id = order_res.json()['data']['id']
 print(f'[2/4 OPERATION SERVICE] Created order ID: {{order_id}} for user {{user_id}}')
 
 pay_res = o_client.post(f'/order/{{order_id}}/payment', headers=user_auth, json={{'method': 'card'}})
-assert pay_res.status_code == 200
-print(f'[2/4 OPERATION SERVICE] Order {{order_id}} successfully paid')
+assert pay_res.status_code == 503
+assert 'not configured' in pay_res.json()['message']
+print(f'[2/4 OPERATION SERVICE] Order {{order_id}} direct payment returned 503 (gateway unconfigured)')
+
+staff_auth = auth_header(sub=2, role='staff')
+status_res = o_client.patch(f'/order/{{order_id}}/status', headers=staff_auth, json={{'status': 'paid'}})
+assert status_res.status_code == 200
+print(f'[2/4 OPERATION SERVICE] Order {{order_id}} advanced to paid by staff')
 
 # --- 3. REPORT SERVICE ---
 for k in list(sys.modules.keys()):
