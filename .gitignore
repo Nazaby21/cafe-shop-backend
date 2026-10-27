@@ -17,8 +17,9 @@ venv/
 *.db
 *.sqlite3
 
-# Backups written by scripts/cleanup_test_data.py (contain personal data)
+# Backups written by cleanup scripts (contain personal data)
 backups/
+**/backups/
 
 # IDE
 .idea/workspace.xml
