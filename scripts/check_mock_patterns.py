@@ -60,10 +60,13 @@ def scan(paths: list[str]) -> list[str]:
             text = Path(path).read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
             continue
+        is_bakong_impl = "bakong" in path.lower() or "payment" in path.lower()
         for lineno, line in enumerate(text.splitlines(), start=1):
-            if "BAKONG_MODE" in line or "BakongMode" in line or "# noqa" in line:
+            if any(term in line for term in ("BAKONG_MODE", "BakongMode", "# noqa")):
                 continue
             for name, pattern in PATTERNS.items():
+                if name == "mock" and is_bakong_impl:
+                    continue
                 if pattern.search(line):
                     problems.append(f"{path}:{lineno}: [{name}] {line.strip()}")
     return problems

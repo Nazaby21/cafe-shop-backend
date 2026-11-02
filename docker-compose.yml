@@ -1,0 +1,173 @@
+name: coffee-shop-stack
+
+services:
+  # ===========================================================================
+  # 1. DATABASE: PostgreSQL 16 (Single RDBMS instance, isolated DBs)
+  # ===========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: coffee_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - coffee_network
+    # Port 5432 is strictly kept internal to Docker network for security.
+    expose:
+      - "5432"
+
+  # ===========================================================================
+  # 2. BACKEND MICROSERVICES (Internal network only; no host port bindings)
+  # ===========================================================================
+  user-service:
+    build:
+      context: .
+      dockerfile: user_service/Dockerfile
+    container_name: coffee_user_service
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: user_service_db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      CORS_ORIGINS: "*"
+    expose:
+      - "8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - coffee_network
+
+  operation-service:
+    build:
+      context: .
+      dockerfile: operation_service/Dockerfile
+    container_name: coffee_operation_service
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: operation_service_db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      BAKONG_MODE: ${BAKONG_MODE:-mock}
+      BAKONG_ACCOUNT_ID: ${BAKONG_ACCOUNT_ID:-coffee_shop@bakong}
+      BAKONG_MERCHANT_NAME: ${BAKONG_MERCHANT_NAME:-Coffee Shop}
+      BAKONG_MERCHANT_CITY: ${BAKONG_MERCHANT_CITY:-Phnom Penh}
+      BAKONG_STORE_LABEL: ${BAKONG_STORE_LABEL:-CoffeeShop-Main}
+      BAKONG_TERMINAL_LABEL: ${BAKONG_TERMINAL_LABEL:-POS-01}
+      BAKONG_TOKEN: ${BAKONG_TOKEN:-mock_token}
+      BAKONG_REGISTERED_EMAIL: ${BAKONG_REGISTERED_EMAIL:-merchant@coffeeshop.kh}
+      CORS_ORIGINS: "*"
+    expose:
+      - "8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - coffee_network
+
+  report-service:
+    build:
+      context: .
+      dockerfile: report_service/Dockerfile
+    container_name: coffee_report_service
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: report_service_db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      USER_SERVICE_BASE_URL: http://user-service:8001
+      OPERATION_SERVICE_BASE_URL: http://operation-service:8002
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
+      JWT_ALGORITHM: HS256
+      SYNC_PAGE_SIZE: 100
+      CORS_ORIGINS: "*"
+    expose:
+      - "8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - coffee_network
+
+  # ===========================================================================
+  # 3. API GATEWAY: Kong Gateway OSS 3.9 (DB-less Declarative Mode)
+  # ===========================================================================
+  kong:
+    image: kong:3.9-alpine
+    container_name: coffee_kong_gateway
+    restart: unless-stopped
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 127.0.0.1:8001, [::1]:8001
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+    volumes:
+      - ./kong/kong.yml:/kong/declarative/kong.yml:ro
+    ports:
+      # Public Gateway Proxy Entry Point
+      - "8000:8000"
+      # Admin API: Bound strictly to localhost loopback (never exposed publicly)
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      - user-service
+      - operation-service
+      - report-service
+    networks:
+      - coffee_network
+
+  # ===========================================================================
+  # 4. FRONTEND: Next.js 15 Client
+  # ===========================================================================
+  frontend:
+    build:
+      context: ../coffee_shop_frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    container_name: coffee_frontend
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - kong
+    networks:
+      - coffee_network
+
+networks:
+  coffee_network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local

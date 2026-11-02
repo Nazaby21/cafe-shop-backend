@@ -194,6 +194,7 @@ def _seed_pending_order(db_session, price: Decimal = Decimal("4.50"), qty: int =
 def test_khqr_payment_creation_idempotency_and_verification_success(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "BAKONG_ACCOUNT_ID", MERCHANT_BAKONG_ID)
     monkeypatch.setattr(settings, "BAKONG_API_BASE_URL", BAKONG_TEST_BASE_URL)
+    monkeypatch.setattr(settings, "BAKONG_MODE", "sandbox")
 
     order_id = _seed_pending_order(db_session, price=Decimal("4.50"), qty=2)  # Total = 9.00 USD
     customer_headers = auth_header(sub=101, role="customer")
@@ -264,6 +265,7 @@ def test_khqr_payment_creation_idempotency_and_verification_success(client, db_s
 def test_worker_handles_expired_qr_and_regeneration(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "BAKONG_ACCOUNT_ID", MERCHANT_BAKONG_ID)
     monkeypatch.setattr(settings, "BAKONG_API_BASE_URL", BAKONG_TEST_BASE_URL)
+    monkeypatch.setattr(settings, "BAKONG_MODE", "sandbox")
 
     order_id = _seed_pending_order(db_session, price=Decimal("3.25"), qty=1)
     customer_headers = auth_header(sub=101, role="customer")
@@ -321,6 +323,7 @@ def test_worker_handles_bakong_timeout_and_token_auto_renewal(db_session, monkey
     monkeypatch.setattr(settings, "BAKONG_ACCOUNT_ID", MERCHANT_BAKONG_ID)
     monkeypatch.setattr(settings, "BAKONG_API_BASE_URL", BAKONG_TEST_BASE_URL)
     monkeypatch.setattr(settings, "BAKONG_REGISTERED_EMAIL", "merchant@coffeeshop.kh")
+    monkeypatch.setattr(settings, "BAKONG_MODE", "sandbox")
 
     order_id = _seed_pending_order(db_session, price=Decimal("5.00"), qty=1)
     from app.schemas.payment_schema import CreatePaymentRequest
@@ -397,6 +400,8 @@ def test_worker_handles_bakong_timeout_and_token_auto_renewal(db_session, monkey
 
 def test_underpayment_overpayment_and_late_payment_reconciliation(db_session, monkeypatch):
     monkeypatch.setattr(settings, "BAKONG_ACCOUNT_ID", MERCHANT_BAKONG_ID)
+    monkeypatch.setattr(settings, "BAKONG_API_BASE_URL", BAKONG_TEST_BASE_URL)
+    monkeypatch.setattr(settings, "BAKONG_MODE", "sandbox")
     from app.schemas.payment_schema import CreatePaymentRequest
     from app.services.payment_service import PaymentService
 
@@ -470,6 +475,8 @@ def test_underpayment_overpayment_and_late_payment_reconciliation(db_session, mo
 
 def test_staff_manual_refund_and_bulk_md5_list(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "BAKONG_ACCOUNT_ID", MERCHANT_BAKONG_ID)
+    monkeypatch.setattr(settings, "BAKONG_API_BASE_URL", BAKONG_TEST_BASE_URL)
+    monkeypatch.setattr(settings, "BAKONG_MODE", "sandbox")
     order_id = _seed_pending_order(db_session, price=Decimal("5.50"), qty=1)
     customer_headers = auth_header(sub=101, role="customer")
     staff_headers = auth_header(sub=2, role="staff")
@@ -542,3 +549,52 @@ def test_staff_manual_refund_and_bulk_md5_list(client, db_session, monkeypatch):
         assert batch_out["md5_paid_1"].found is True
         assert batch_out["md5_paid_1"].tx_hash == "batch_hash_1"
         assert batch_out["md5_unpaid_2"].found is False
+
+
+def test_mock_bakong_client_flow_and_mock_pay_endpoint(client, db_session, monkeypatch):
+    """Verifies BakongClientInterface with MockBakongClient and POST /payment/mock-pay/{md5}."""
+    from app.services.bakong_khqr import MockBakongClient, get_bakong_client
+
+    monkeypatch.setattr(settings, "BAKONG_ACCOUNT_ID", MERCHANT_BAKONG_ID)
+    monkeypatch.setattr(settings, "BAKONG_MODE", "mock")
+
+    mock_client = get_bakong_client()
+    assert isinstance(mock_client, MockBakongClient)
+    assert mock_client.renew_token() == "mock_renewed_bakong_token_jwt"
+
+    # Simulate payment for MD5
+    test_md5 = "a1b2c3d4e5f678901234567890abcdef"
+    mock_client.simulate_payment(test_md5, amount=Decimal("7.50"), currency="USD")
+
+    # Check query returns success
+    res = mock_client.check_transaction_by_md5(test_md5)
+    assert res.found is True
+    assert res.response_code == 0
+    assert res.amount == Decimal("7.50")
+    assert "mock_tx_" in res.tx_hash
+
+    # Check unsimulated returns not found
+    res_unknown = mock_client.check_transaction_by_md5("unknown_md5_hash_0000000000000")
+    assert res_unknown.found is False
+
+    # Seed an order and create KHQR payment
+    order_id = _seed_pending_order(db_session, price=Decimal("7.50"), qty=1)
+    customer_headers = auth_header(sub=101, role="customer")
+    init_res = client.post(
+        f"/order/{order_id}/payment",
+        headers=customer_headers,
+        json={"method": "khqr", "currency": "USD"},
+    )
+    assert init_res.status_code == 200
+    qr_md5 = init_res.json()["data"]["qr_md5"]
+
+    # Test POST /payment/mock-pay/{md5} endpoint
+    pay_res = client.post(f"/payment/mock-pay/{qr_md5}")
+    assert pay_res.status_code == 200
+    assert pay_res.json()["success"] is True
+    assert pay_res.json()["data"]["status"] == "paid"
+
+    # Verify when BAKONG_MODE != 'mock', mock-pay returns 403 Forbidden
+    monkeypatch.setattr(settings, "BAKONG_MODE", "sandbox")
+    forbidden_res = client.post(f"/payment/mock-pay/{qr_md5}")
+    assert forbidden_res.status_code == 403

@@ -8,6 +8,7 @@ Bakong Open API v1 (/v1/check_transaction_by_md5, /v1/check_transaction_by_md5_l
 """
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 import hashlib
 import json
 from dataclasses import dataclass
@@ -268,7 +269,46 @@ class BakongTransactionResult:
     raw: dict[str, Any] | None = None
 
 
-class BakongOpenAPIClient:
+class BakongClientInterface(ABC):
+    """Abstract interface defining the contract for Bakong Open API interactions."""
+
+    @abstractmethod
+    def renew_token(self, email: str | None = None) -> str:
+        """Obtains or renews an API access token."""
+        pass
+
+    @abstractmethod
+    def check_transaction_by_md5(self, qr_md5: str) -> BakongTransactionResult:
+        """Queries settlement status for a single KHQR by MD5 hash."""
+        pass
+
+    @abstractmethod
+    def check_transaction_by_md5_list(self, md5_list: list[str]) -> dict[str, BakongTransactionResult]:
+        """Batch-queries settlement status for a list of KHQR MD5 hashes."""
+        pass
+
+    @abstractmethod
+    def generate_deeplink(self, qr_string: str, callback_url: str | None = None) -> str | None:
+        """Requests a Bakong mobile deeplink (best-effort)."""
+        pass
+
+    def generate_deeplink_by_qr(self, qr_string: str) -> str | None:
+        """Alias for generate_deeplink."""
+        return self.generate_deeplink(qr_string)
+
+    @abstractmethod
+    def simulate_payment(
+        self,
+        qr_md5: str,
+        amount: Decimal | None = None,
+        currency: str = "USD",
+        from_account_id: str = "mock_customer@bakong",
+    ) -> bool:
+        """Simulates successful customer settlement for testing in mock mode."""
+        pass
+
+
+class RealBakongClient(BakongClientInterface):
     """
     HTTP client for the National Bank of Cambodia (NBC) Bakong Open API v1.
     Supports single MD5 check, bulk MD5 list check, token renewal, and deeplink generation.
@@ -437,6 +477,96 @@ class BakongOpenAPIClient:
             raw=body,
         )
 
+    def simulate_payment(
+        self,
+        qr_md5: str,
+        amount: Decimal | None = None,
+        currency: str = "USD",
+        from_account_id: str = "mock_customer@bakong",
+    ) -> bool:
+        return False
+
+
+BakongOpenAPIClient = RealBakongClient
+
+
+class MockBakongClient(BakongClientInterface):
+    """
+    Mock Bakong Open API Client adhering to BakongClientInterface.
+    Operates in-memory without making outbound network requests.
+    Default client in local/test/mock environments.
+    """
+
+    _instance: MockBakongClient | None = None
+    _simulated_transactions: dict[str, dict[str, Any]] = {}
+
+    @classmethod
+    def get_instance(cls) -> MockBakongClient:
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    @classmethod
+    def reset(cls) -> None:
+        cls._simulated_transactions.clear()
+
+    def renew_token(self, email: str | None = None) -> str:
+        return "mock_renewed_bakong_token_jwt"
+
+    def simulate_payment(
+        self,
+        qr_md5: str,
+        amount: Decimal | None = None,
+        currency: str = "USD",
+        from_account_id: str = "mock_customer@bakong",
+    ) -> bool:
+        self._simulated_transactions[qr_md5] = {
+            "hash": f"mock_tx_{qr_md5[:12]}",
+            "from_account_id": from_account_id,
+            "to_account_id": settings.BAKONG_ACCOUNT_ID or "coffee_shop@bakong",
+            "currency": currency,
+            "amount": amount or Decimal("10.00"),
+        }
+        return True
+
+    def check_transaction_by_md5(self, qr_md5: str) -> BakongTransactionResult:
+        if qr_md5 in self._simulated_transactions:
+            tx = self._simulated_transactions[qr_md5]
+            return BakongTransactionResult(
+                found=True,
+                response_code=0,
+                error_code=None,
+                message="Transaction found (mocked)",
+                tx_hash=tx["hash"],
+                from_account_id=tx["from_account_id"],
+                to_account_id=tx["to_account_id"],
+                currency=tx["currency"],
+                amount=tx["amount"],
+            )
+        return BakongTransactionResult(
+            found=False,
+            response_code=1,
+            error_code=1,
+            message="Transaction not found (mocked)",
+        )
+
+    def check_transaction_by_md5_list(self, md5_list: list[str]) -> dict[str, BakongTransactionResult]:
+        results: dict[str, BakongTransactionResult] = {}
+        for md5 in md5_list:
+            results[md5] = self.check_transaction_by_md5(md5)
+        return results
+
+    def generate_deeplink(self, qr_string: str, callback_url: str | None = None) -> str | None:
+        md5 = compute_qr_md5(qr_string)
+        return f"bakong://pay?qr={md5[:16]}"
+
+
+def get_bakong_client(mode: str | None = None) -> BakongClientInterface:
+    configured_mode = mode or getattr(settings, "BAKONG_MODE", "mock")
+    if configured_mode == "sandbox":
+        return RealBakongClient()
+    return MockBakongClient.get_instance()
+
 
 def compute_poll_backoff_seconds(attempt_count: int) -> int:
     """Adaptive polling interval: 3s (attempts 1-10), 5s (11-22), 10s (23+)."""
@@ -455,14 +585,24 @@ class PaymentVerificationWorker:
 
     def __init__(
         self,
-        bakong_client: BakongOpenAPIClient | None = None,
+        bakong_client: BakongClientInterface | None = None,
         expected_receiver_account: str | None = None,
         worker_id: str = "worker-1",
     ):
-        self.bakong_client = bakong_client or BakongOpenAPIClient()
+        self._explicit_client = bakong_client
         self.expected_receiver_account = expected_receiver_account or settings.BAKONG_ACCOUNT_ID
         self.worker_id = worker_id
         self.order_service = OrderService()
+
+    @property
+    def bakong_client(self) -> BakongClientInterface:
+        if self._explicit_client is not None:
+            return self._explicit_client
+        return get_bakong_client()
+
+    @bakong_client.setter
+    def bakong_client(self, client: BakongClientInterface | None):
+        self._explicit_client = client
 
     def process_due_jobs(self, db: Session, batch_size: int = 25) -> int:
         """

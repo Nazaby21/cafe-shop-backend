@@ -26,12 +26,13 @@ from app.models.payment import (
 from app.repository import payment_repository as payment_repo
 from app.schemas.payment_schema import CreatePaymentRequest, RefundPaymentRequest
 from app.services.bakong_khqr import (
-    BakongOpenAPIClient,
+    BakongClientInterface,
     BakongStateError,
     PaymentVerificationWorker,
     compute_qr_md5,
     convert_usd_to_khr,
     generate_khqr_string,
+    get_bakong_client,
 )
 from app.services.order_service import OrderService
 
@@ -66,13 +67,23 @@ class PaymentService:
     def __init__(
         self,
         gateway: PaymentGateway | None = None,
-        bakong_client: BakongOpenAPIClient | None = None,
+        bakong_client: BakongClientInterface | None = None,
         bakong_account_id: str | None = None,
     ):
         self.order_service = OrderService()
         self.gateway = gateway
-        self.bakong_client = bakong_client or BakongOpenAPIClient()
+        self._explicit_client = bakong_client
         self.bakong_account_id = bakong_account_id
+
+    @property
+    def bakong_client(self) -> BakongClientInterface:
+        if self._explicit_client is not None:
+            return self._explicit_client
+        return get_bakong_client()
+
+    @bakong_client.setter
+    def bakong_client(self, client: BakongClientInterface | None):
+        self._explicit_client = client
 
     @property
     def resolved_bakong_account(self) -> str | None:

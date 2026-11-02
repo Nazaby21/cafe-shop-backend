@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.exception import Forbidden, PaymentNotFound
 from app.dependencies.auth import CurrentUser, get_current_user, require_roles
 from app.dependencies.db import get_db
@@ -106,3 +107,45 @@ def refund_payment(
 ):
     payment = payment_service.refund_order_payment(db, order_id, request, current_user.id)
     return ApiResponse(success=True, message="Manual Bakong refund recorded", data=payment)
+
+
+payment_root_router = APIRouter(prefix="/payment", tags=["payment-operations"])
+
+
+@payment_root_router.post("/mock-pay/{md5}")
+def mock_pay_by_md5(
+    md5: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Simulates customer settlement for the specified KHQR MD5 hash.
+    Enabled ONLY when BAKONG_MODE is 'mock' (returns 403 Forbidden otherwise).
+    """
+    if getattr(settings, "BAKONG_MODE", "mock") != "mock":
+        raise Forbidden("Mock payment endpoint is disabled when BAKONG_MODE is not 'mock'")
+
+    from app.models.payment import Payment
+    from app.services.bakong_khqr import MockBakongClient, PaymentVerificationWorker
+
+    mock_client = MockBakongClient.get_instance()
+    mock_client.simulate_payment(md5)
+
+    payment = db.query(Payment).filter(Payment.qr_md5 == md5).first()
+    if payment:
+        worker = PaymentVerificationWorker(bakong_client=mock_client)
+        payment = worker.verify_payment_now(db, payment)
+        return ApiResponse(
+            success=True,
+            message=f"Simulated payment for MD5 {md5} succeeded; order {payment.order_id} marked {payment.status}",
+            data={
+                "md5": md5,
+                "payment_id": payment.id,
+                "order_id": payment.order_id,
+                "status": payment.status,
+            },
+        )
+    return ApiResponse(
+        success=True,
+        message=f"Simulated payment recorded for MD5 {md5}",
+        data={"md5": md5, "status": "simulated"},
+    )
