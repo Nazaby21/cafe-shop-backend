@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+*.pem
 
 # Python
 __pycache__/
@@ -13,8 +14,13 @@ venv/
 .ruff_cache/
 *.egg-info/
 
+# Frontend / JS
+node_modules/
+.next/
+
 # Local DB files created by tests / tools
 *.db
+*.sqlite*
 *.sqlite3
 
 # Backups written by cleanup scripts (contain personal data)
