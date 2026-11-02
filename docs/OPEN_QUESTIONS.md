@@ -1,6 +1,6 @@
 # Open Questions, Official Spec Discrepancies & Architectural Assumptions (`docs/OPEN_QUESTIONS.md`)
 
-> Per unattended execution rules, every question or discrepancy between common payment gateway assumptions and the **official NBC Bakong Open API & KHQR specification** is documented here along with the engineering assumption applied.
+> Per unattended execution rules, every question or discrepancy between common payment gateway assumptions and the **official NBC Bakong Open API & KHQR specification**, as well as Kong APIM and PostgreSQL architectural decisions, is documented here along with the engineering assumption applied.
 
 ---
 
@@ -16,25 +16,37 @@
 
 ### Q3: Cambodia Geo-IP Filtering on `https://api-bakong.nbc.gov.kh`
 - **Official NBC Network Behavior**: NBC's production gateway (`api-bakong.nbc.gov.kh`) enforces strict perimeter filtering and typically drops or blocks requests originating from non-Cambodian cloud data centers (e.g., AWS Singapore, US/EU regions) unless the egress static IP is whitelisted with NBC or routed through a Cambodian ISP/VPS.
-- **Question for Project Owner**: Where will your production backend be hosted?
-- **Assumption & Design Decision**: We made `BAKONG_API_BASE_URL` configurable (`https://sit-api-bakong.nbc.gov.kh` for SIT, `https://api-bakong.nbc.gov.kh` for Cambodia-hosted production, or an authorized Cambodian reverse proxy URL) and added a `BAKONG_MOCK_MODE` (`true` in local/test) so development and CI never call the live production API.
+- **Assumption & Design Decision**: We implemented `BakongClientInterface` with `MockBakongClient` and `RealBakongClient` switchable via `BAKONG_MODE=mock|sandbox` (default `mock`). In mock mode, 100% of payment generation, MD5 calculations, and simulation endpoints run offline with zero outbound HTTP requests.
 
 ---
 
 ## 2. Project-Specific Architectural Questions & Assumptions
 
 ### Q4: Dedicated `payment-service` vs Existing `operation_service` Payment Routes
-- **Observation**: Currently, the frontend's `operationClient` (`NEXT_PUBLIC_OPERATION_API_URL`, port `8002`) calls `POST /order/{id}/payment` and `GET /order/{id}/payment` directly on `operation_service`, and existing integration tests (`coffee_shop/tests/test_cross_service_integration.py` and `operation_service/tests/test_operation_api.py`) test `operation_service`.
-- **Question**: Should Bakong KHQR endpoints also be served on `operation_service` (`/order/{order_id}/payment/*`) so the existing frontend `operationClient` works without requiring a 4th port in `.env.local`, or only on a standalone `payment_service` (`:8004`)?
-- **Assumption & Design Decision**: We provide **both**:
-  1. Full Bakong KHQR generation, CRC16/MD5, verification worker (`SKIP LOCKED`), Alembic migrations, and endpoints integrated into `operation_service` (preserving 100% compatibility with `NEXT_PUBLIC_OPERATION_API_URL` and existing service topology), **AND**
-  2. Clean modular separation (`BakongKHQRService`, `BakongOpenAPIClient`, `PaymentVerificationWorker`) that can run either as a standalone `payment-service` microservice (`:8004`) or embedded inside `operation_service` (`:8002`).
+- **Assumption & Design Decision**: Full Bakong KHQR generation, CRC16/MD5, verification worker (`SKIP LOCKED`), Alembic migrations, and payment routes are modularized in `operation_service`, with routes exposed through Kong Gateway at both `/api/orders/{id}/payment` and `/api/payments`.
 
 ### Q5: Settlement Currency (USD vs KHR) and Exchange Rate
-- **Observation**: All product prices in `operation_service_db.products` are stored in `USD` (e.g., `$3.50`). In Cambodia, customers frequently pay KHQR from either their USD or KHR bank account (Bakong automatically handles cross-currency settlement at the acquiring bank's rate if the QR is in USD, or merchants can display a USD or KHR QR).
-- **Question**: What store exchange rate should be used when a customer explicitly requests a KHR-denominated KHQR?
 - **Assumption & Design Decision**: Default KHQR currency is `USD` (matching `orders.total_amount`). When `currency="KHR"` is requested, we convert using configurable `BAKONG_USD_TO_KHR_RATE` (default `4100` KHR per `1.00 USD`, rounded to integer KHR with 0 decimal places as required by EMVCo Tag `54` for ISO `116`).
 
 ### Q6: Staff Offline Cash Payments vs "ONLY Bakong KHQR"
-- **Observation**: The prompt states *"Integrate the Bakong KHQR payment gateway (ONLY Bakong KHQR, no ABA PayWay or other gateways)"*, while existing commit `1e665cf` tests staff marking orders paid.
 - **Assumption & Design Decision**: All third-party online card/wallet gateways (`card`, `e_wallet`, ABA PayWay, Stripe, etc.) are removed/excluded. Online checkout uses **exclusively Bakong KHQR** (`method="khqr"`). Staff/admin can still advance orders via `PATCH /order/{id}/status` as required by existing integration tests.
+
+---
+
+## 3. Kong Gateway & Database Transition Decisions
+
+### Q7: Kong DB-less Mode vs PostgreSQL Mode
+- **Decision**: Pinned Kong Gateway OSS 3.9 in **DB-less mode** (`KONG_DATABASE=off`) with declarative configuration in `kong/kong.yml`.
+- **Rationale**: Eliminates the operational overhead of a 4th database schema, avoids migration race conditions during container boot, and keeps the gateway entirely stateless and version-controlled in git.
+
+### Q8: Rate Limiting Policy Without Redis
+- **Decision**: Configured Kong Rate Limiting with `policy: local`.
+- **Rationale**: Redis is strictly prohibited by architectural constraints. Local in-memory rate limiting operates within Kong's shared memory dictionary (`lua_shared_dict`), enforcing client limits per container with zero external cache dependency.
+
+### Q9: Gateway vs Service-Level JWT Authentication
+- **Decision**: Perimeter routing, rate-limiting, and CORS at Kong Gateway; cryptographic JWT verification and fine-grained RBAC in FastAPI microservice dependencies (`get_current_user`, `require_roles`).
+- **Rationale**: Keeps Kong DB-less and lightweight without static consumer keys; preserves fine-grained domain authorization (such as checking if an order belongs to the requesting customer); ensures consistent `ApiResponse` error structures.
+
+### Q10: Legacy SQLite Binary Files Row Count
+- **Verification**: `user_service.db`, `operation_service.db`, and `report_service.db` were inspected via python `sqlite3`. All tables had **0 rows**.
+- **Action**: No data extraction or schema migration script needed; all models and migrations are defined in SQLAlchemy and Alembic. Database files are listed in `CLEANUP_REPORT_SQLITE.md` and safely marked for deletion.

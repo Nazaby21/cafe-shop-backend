@@ -33,7 +33,7 @@ PATTERNS: dict[str, re.Pattern[str]] = {
 EXCLUDED_DIRS = {"tests", "docs", "scripts", ".venv", "node_modules", ".idea", ".github"}
 EXCLUDED_PREFIXES = ("libs/testing/",)
 EXCLUDED_FILES = {"scripts/check_mock_patterns.py", ".pre-commit-config.yaml"}
-EXCLUDED_SUFFIXES = {".md", ".pyc", ".png", ".jpg", ".ico", ".lock"}
+EXCLUDED_SUFFIXES = {".md", ".pyc", ".png", ".jpg", ".ico", ".lock", ".yml", ".yaml", ".example", ".sh", ".ps1"}
 
 
 def is_excluded(path: str) -> bool:
