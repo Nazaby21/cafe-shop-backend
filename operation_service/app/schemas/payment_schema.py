@@ -1,18 +1,39 @@
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class CreatePaymentRequest(BaseModel):
-    method: str = Field(pattern="^(cash|card|e_wallet)$")
+    method: str = Field(default="khqr", pattern="^(khqr|cash|card|e_wallet)$")
+    currency: str = Field(default="USD", pattern="^(USD|KHR)$")
+    idempotency_key: str | None = Field(default=None, max_length=64)
+
+
+class RefundPaymentRequest(BaseModel):
+    amount: Decimal = Field(gt=0)
+    reason: str = Field(min_length=3, max_length=255)
+    external_refund_ref: str = Field(min_length=3, max_length=128)
 
 
 class PaymentResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
+
     id: int
     order_id: int
     amount: Decimal
+    currency: str = "USD"
     method: str
     status: str
     transaction_ref: str
-    failure_reason: str | None
+    failure_reason: str | None = None
+    qr_string: str | None = None
+    qr_md5: str | None = None
+    deeplink_url: str | None = None
+    expires_at: datetime | None = None
+    paid_at: datetime | None = None
+    bakong_transaction_hash: str | None = None
+    payer_account_masked: str | None = None
+    attempt_count: int = 1
+    created_at: datetime | None = None
+    updated_at: datetime | None = None

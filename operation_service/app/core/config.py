@@ -36,6 +36,22 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: Annotated[list[str], NoDecode] = ["*"]
 
+    # Bakong KHQR & NBC Open API settings
+    BAKONG_API_BASE_URL: str = "https://sit-api-bakong.nbc.gov.kh"
+    BAKONG_TOKEN: str | None = None
+    BAKONG_REGISTERED_EMAIL: str | None = None
+    BAKONG_ACCOUNT_ID: str | None = None
+    BAKONG_MERCHANT_ID: str | None = None
+    BAKONG_ACQUIRING_BANK: str | None = None
+    BAKONG_MERCHANT_NAME: str = "Coffee Shop"
+    BAKONG_MERCHANT_CITY: str = "Phnom Penh"
+    BAKONG_STORE_LABEL: str = "CoffeeShop-Main"
+    BAKONG_TERMINAL_LABEL: str = "POS-01"
+    BAKONG_PHONE_NUMBER: str | None = None
+    BAKONG_QR_EXPIRY_SECONDS: int = 180
+    BAKONG_USD_TO_KHR_RATE: int = 4100
+    BAKONG_CALLBACK_URL: str | None = None
+
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
     def _split_origins(cls, value):

@@ -5,12 +5,19 @@ from app.core.config import settings
 from app.core.database import Base, engine
 
 # Import models so SQLAlchemy registers them on Base.metadata before create_all().
-from app.models.category import Category
-from app.models.customization import CustomizationGroup, CustomizationOption
-from app.models.product import Product
-from app.models.order import Order, OrderItem
-from app.models.payment import Payment
-from app.models.stock_movement import StockMovement
+from app.models.category import Category  # noqa: F401
+from app.models.customization import CustomizationGroup, CustomizationOption  # noqa: F401
+from app.models.product import Product  # noqa: F401
+from app.models.order import Order, OrderItem  # noqa: F401
+from app.models.payment import (  # noqa: F401
+    IdempotencyRecord,
+    Payment,
+    PaymentAttempt,
+    PaymentEvent,
+    Refund,
+    VerificationJob,
+)
+from app.models.stock_movement import StockMovement  # noqa: F401
 
 from app.api.product_route import router as product_router
 from app.api.order_route import router as order_router
@@ -20,11 +27,11 @@ from app.api.category_route import router as category_router
 from app.core.exception import ApplicationError
 from app.core.exception_handler import application_error_handler
 
-# NOTE: create_all() is convenient for local development but should be
-# replaced by Alembic migrations before this ever touches a shared/prod DB.
+# NOTE: create_all() is convenient for local development; Alembic migrations
+# are provided in operation_service/migrations/ for production PostgreSQL.
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Coffee Shop - Operation Service")
+app = FastAPI(title="Coffee Shop - Operation & Bakong KHQR Payment Service")
 
 app.add_middleware(
     CORSMiddleware,
