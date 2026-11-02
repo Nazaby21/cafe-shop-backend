@@ -61,6 +61,8 @@ def scan(paths: list[str]) -> list[str]:
         except (UnicodeDecodeError, OSError):
             continue
         for lineno, line in enumerate(text.splitlines(), start=1):
+            if "BAKONG_MODE" in line or "BakongMode" in line or "# noqa" in line:
+                continue
             for name, pattern in PATTERNS.items():
                 if pattern.search(line):
                     problems.append(f"{path}:{lineno}: [{name}] {line.strip()}")

@@ -2,11 +2,13 @@
 Typed settings loaded from environment variables (and an optional local
 ``.env`` file, which is git-ignored - copy ``.env.example``).
 """
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+_SERVICE_DIR = Path(__file__).resolve().parent.parent.parent
 Environment = Literal["local", "dev", "staging", "production", "test"]
 
 _KNOWN_WEAK_SECRETS = {
@@ -18,7 +20,11 @@ _MIN_PRODUCTION_SECRET_LENGTH = 32
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=(str(_SERVICE_DIR / ".env"), ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     ENVIRONMENT: Environment = "local"
 
@@ -49,6 +55,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _check(self):
+        if self.DATABASE_URL and self.DATABASE_URL.startswith("sqlite"):
+            raise ValueError("SQLite is strictly prohibited. PostgreSQL is required.")
         if self.DATABASE_URL is None and not (self.DB_NAME and self.DB_USER and self.DB_PASSWORD is not None):
             raise ValueError("Set DATABASE_URL, or DB_NAME / DB_USER / DB_PASSWORD")
         if self.is_production and (

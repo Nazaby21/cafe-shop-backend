@@ -10,27 +10,57 @@ with verification of:
   - Order creation and payment
   - Reporting snapshot synchronization
   - Cascade & isolation: stale-record removal when test entities are purged
+
+All tests execute against dedicated PostgreSQL test databases (PostgreSQL only; no SQLite).
 """
+import os
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
+from urllib.parse import urlparse, urlunparse
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def get_service_test_db_url(service_dir: str, default_db: str) -> str:
+    env_var = f"{service_dir.upper()}_TEST_DATABASE_URL"
+    if os.getenv(env_var):
+        return os.environ[env_var]
+    if os.getenv("TEST_DATABASE_URL"):
+        return os.environ["TEST_DATABASE_URL"]
+
+    # Read the service settings
+    sys_path_orig = list(sys.path)
+    try:
+        sys.path.insert(0, str(REPO_ROOT / service_dir))
+        # Clear cached app modules
+        for mod in list(sys.modules.keys()):
+            if mod == "app" or mod.startswith("app."):
+                del sys.modules[mod]
+        # Change working directory so pydantic loads service .env if present
+        cwd = os.getcwd()
+        try:
+            os.chdir(str(REPO_ROOT / service_dir))
+            from app.core.config import settings
+            base_url = settings.database_url
+            parsed = urlparse(base_url)
+            return urlunparse(parsed._replace(path=f"/{default_db}"))
+        finally:
+            os.chdir(cwd)
+    finally:
+        sys.path = sys_path_orig
+
+
 def run_integration_check() -> int:
     print("=" * 70)
-    print("STARTING CROSS-SERVICE INTEGRATION CHECK")
+    print("STARTING CROSS-SERVICE INTEGRATION CHECK (POSTGRESQL ONLY)")
     print("=" * 70)
 
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        tmp_path = Path(tmp_dir)
-        u_db = tmp_path / "user_itest.db"
-        o_db = tmp_path / "operation_itest.db"
-        r_db = tmp_path / "report_itest.db"
+    u_db_url = get_service_test_db_url("user_service", "user_service_test_db")
+    o_db_url = get_service_test_db_url("operation_service", "operation_service_test_db")
+    r_db_url = get_service_test_db_url("report_service", "report_service_test_db")
 
-        script = f"""
+    script = f"""
 import sys, os
 from decimal import Decimal
 from pathlib import Path
@@ -50,11 +80,12 @@ for k in list(sys.modules.keys()):
     if k == 'app' or k.startswith('app.'):
         del sys.modules[k]
 sys.path = [str(root / 'user_service')] + [p for p in sys.path if not any(p.endswith(x) for x in ['user_service', 'operation_service', 'report_service'])]
-os.environ['DATABASE_URL'] = r'sqlite:///{u_db}'
+os.environ['DATABASE_URL'] = r'{u_db_url}'
 
-from app.core.database import Base as UBase, SessionLocal as USession, engine as u_engine
-UBase.metadata.create_all(bind=u_engine)
 from app.main import app as u_app
+from app.core.database import Base as UBase, SessionLocal as USession, engine as u_engine
+UBase.metadata.drop_all(bind=u_engine)
+UBase.metadata.create_all(bind=u_engine)
 u_client = TestClient(u_app)
 
 cust_email = marked_email('integ_customer')
@@ -73,15 +104,17 @@ for k in list(sys.modules.keys()):
     if k == 'app' or k.startswith('app.'):
         del sys.modules[k]
 sys.path = [str(root / 'operation_service')] + [p for p in sys.path if not any(p.endswith(x) for x in ['user_service', 'operation_service', 'report_service'])]
-os.environ['DATABASE_URL'] = r'sqlite:///{o_db}'
+os.environ['DATABASE_URL'] = r'{o_db_url}'
 
-from app.core.database import Base as OBase, SessionLocal as OSession, engine as o_engine
-OBase.metadata.create_all(bind=o_engine)
 from app.main import app as o_app
+from app.core.database import Base as OBase, SessionLocal as OSession, engine as o_engine
+OBase.metadata.drop_all(bind=o_engine)
+OBase.metadata.create_all(bind=o_engine)
 o_client = TestClient(o_app)
 admin_auth = auth_header(sub=1, role='admin')
 
 cat_res = o_client.post('/category', headers=admin_auth, json={{'name': '[TEST] Coffee', 'description': 'Fresh brew'}})
+assert cat_res.status_code == 200, f'Category creation failed: {{cat_res.text}}'
 cat_id = cat_res.json()['data']['id']
 
 prod_res = o_client.post('/product', headers=admin_auth, json={{
@@ -91,11 +124,12 @@ prod_res = o_client.post('/product', headers=admin_auth, json={{
     'initial_stock': 20,
     'category_id': cat_id,
 }})
+assert prod_res.status_code == 200, f'Product creation failed: {{prod_res.text}}'
 prod_id = prod_res.json()['data']['id']
 print(f'[2/4 OPERATION SERVICE] Created product ID: {{prod_id}} with initial stock 20')
 
 order_res = o_client.post('/order', headers=user_auth, json={{'items': [{{'product_id': prod_id, 'quantity': 2}}]}})
-assert order_res.status_code == 200
+assert order_res.status_code == 200, f'Order creation failed: {{order_res.text}}'
 order_id = order_res.json()['data']['id']
 print(f'[2/4 OPERATION SERVICE] Created order ID: {{order_id}} for user {{user_id}}')
 
@@ -114,11 +148,13 @@ for k in list(sys.modules.keys()):
     if k == 'app' or k.startswith('app.'):
         del sys.modules[k]
 sys.path = [str(root / 'report_service')] + [p for p in sys.path if not any(p.endswith(x) for x in ['user_service', 'operation_service', 'report_service'])]
-os.environ['DATABASE_URL'] = r'sqlite:///{r_db}'
+os.environ['DATABASE_URL'] = r'{r_db_url}'
 
+from app.main import app as r_app
 from app.core.database import Base as RBase, SessionLocal as RSession, engine as r_engine
 from app.models.snapshot import UserSnapshot, OrderSnapshot
 from app.services.sync_service import SyncService
+RBase.metadata.drop_all(bind=r_engine)
 RBase.metadata.create_all(bind=r_engine)
 from app.main import app as r_app
 r_client = TestClient(r_app)
@@ -152,7 +188,7 @@ with respx.mock(assert_all_called=False) as rmock:
         if k == 'app' or k.startswith('app.'):
             del sys.modules[k]
     sys.path = [str(root / 'operation_service')] + [p for p in sys.path if not any(p.endswith(x) for x in ['user_service', 'operation_service', 'report_service'])]
-    os.environ['DATABASE_URL'] = r'sqlite:///{o_db}'
+    os.environ['DATABASE_URL'] = r'{o_db_url}'
     from app.core.database import SessionLocal as OSessionDel
     from app.models.payment import Payment as OpPaymentDel
     from app.models.order import Order as OpOrderDel
@@ -166,7 +202,7 @@ with respx.mock(assert_all_called=False) as rmock:
         if k == 'app' or k.startswith('app.'):
             del sys.modules[k]
     sys.path = [str(root / 'user_service')] + [p for p in sys.path if not any(p.endswith(x) for x in ['user_service', 'operation_service', 'report_service'])]
-    os.environ['DATABASE_URL'] = r'sqlite:///{u_db}'
+    os.environ['DATABASE_URL'] = r'{u_db_url}'
     from app.core.database import SessionLocal as USessionDel
     from app.models.user import User as UsUserDel
     u_del_db = USessionDel()
@@ -179,7 +215,7 @@ with respx.mock(assert_all_called=False) as rmock:
         if k == 'app' or k.startswith('app.'):
             del sys.modules[k]
     sys.path = [str(root / 'report_service')] + [p for p in sys.path if not any(p.endswith(x) for x in ['user_service', 'operation_service', 'report_service'])]
-    os.environ['DATABASE_URL'] = r'sqlite:///{r_db}'
+    os.environ['DATABASE_URL'] = r'{r_db_url}'
     from app.core.database import SessionLocal as RSessionResync
     from app.models.snapshot import UserSnapshot as USnap, OrderSnapshot as OSnap
     from app.services.sync_service import SyncService as ResyncService
@@ -195,17 +231,17 @@ with respx.mock(assert_all_called=False) as rmock:
     print('[SUCCESS] All snapshots verified clean: 0 orphaned or stale references remain.')
     r_resync_db.close()
 """
-        res = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
-        print(res.stdout)
-        if res.stderr:
-            err_lines = [
-                line
-                for line in res.stderr.splitlines()
-                if "StarletteDeprecationWarning" not in line and "httpx2" not in line
-            ]
-            if err_lines:
-                print("\n".join(err_lines), file=sys.stderr)
-        return res.returncode
+    res = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    print(res.stdout)
+    if res.stderr:
+        err_lines = [
+            line
+            for line in res.stderr.splitlines()
+            if "StarletteDeprecationWarning" not in line and "httpx2" not in line
+        ]
+        if err_lines:
+            print("\n".join(err_lines), file=sys.stderr)
+    return res.returncode
 
 
 if __name__ == "__main__":
