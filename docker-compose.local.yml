@@ -1,0 +1,239 @@
+name: coffee-shop-local
+
+services:
+  # ===========================================================================
+  # 1. DATABASE: PostgreSQL 16 (Local Single Instance with Isolated DBs)
+  # ===========================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: coffee_local_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
+    ports:
+      # Bound strictly to 127.0.0.1 loopback for Windows dev tools (DBeaver, psql, IDEs)
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    networks:
+      - coffee_network
+
+  # ===========================================================================
+  # 2. BACKEND MICROSERVICES (Internal network only; no host port mappings)
+  # ===========================================================================
+  user-service:
+    build:
+      context: .
+      dockerfile: user_service/Dockerfile
+    container_name: coffee_local_user_service
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: user_service_db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev_insecure_throwaway_jwt_secret_key_32bytes_minimum!}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_ACCESS_TOKEN_EXPIRE_MINUTES: ${JWT_ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      WATCHFILES_FORCE_POLLING: ${WATCHFILES_FORCE_POLLING:-true}
+    volumes:
+      - ./user_service:/app/user_service
+      - ./libs:/app/libs
+      - /app/.venv
+    expose:
+      - "8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - coffee_network
+
+  operation-service:
+    build:
+      context: .
+      dockerfile: operation_service/Dockerfile
+    container_name: coffee_local_operation_service
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: operation_service_db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev_insecure_throwaway_jwt_secret_key_32bytes_minimum!}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      BAKONG_MODE: ${BAKONG_MODE:-mock}
+      BAKONG_ACCOUNT_ID: ${BAKONG_ACCOUNT_ID:-coffee_shop@bakong}
+      BAKONG_MERCHANT_NAME: ${BAKONG_MERCHANT_NAME:-Coffee Shop}
+      BAKONG_MERCHANT_CITY: ${BAKONG_MERCHANT_CITY:-Phnom Penh}
+      BAKONG_STORE_LABEL: ${BAKONG_STORE_LABEL:-CoffeeShop-Main}
+      BAKONG_TERMINAL_LABEL: ${BAKONG_TERMINAL_LABEL:-POS-01}
+      BAKONG_TOKEN: ${BAKONG_TOKEN:-mock_token}
+      BAKONG_REGISTERED_EMAIL: ${BAKONG_REGISTERED_EMAIL:-merchant@coffeeshop.kh}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      WATCHFILES_FORCE_POLLING: ${WATCHFILES_FORCE_POLLING:-true}
+    volumes:
+      - ./operation_service:/app/operation_service
+      - ./libs:/app/libs
+      - /app/.venv
+    expose:
+      - "8002"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - coffee_network
+
+  report-service:
+    build:
+      context: .
+      dockerfile: report_service/Dockerfile
+    container_name: coffee_local_report_service
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8003", "--reload"]
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-local}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: report_service_db
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      USER_SERVICE_BASE_URL: http://user-service:8001
+      OPERATION_SERVICE_BASE_URL: http://operation-service:8002
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-dev_insecure_throwaway_jwt_secret_key_32bytes_minimum!}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      SYNC_PAGE_SIZE: 100
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      WATCHFILES_FORCE_POLLING: ${WATCHFILES_FORCE_POLLING:-true}
+    volumes:
+      - ./report_service:/app/report_service
+      - ./libs:/app/libs
+      - /app/.venv
+    expose:
+      - "8003"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - coffee_network
+
+  # ===========================================================================
+  # 3. API GATEWAY: Kong Gateway OSS 3.9 (DB-less Declarative Mode)
+  # ===========================================================================
+  kong:
+    image: kong:3.9-alpine
+    container_name: coffee_local_kong
+    restart: unless-stopped
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /kong/declarative/kong.yml
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: 127.0.0.1:8001, [::1]:8001
+      KONG_PROXY_LISTEN: 0.0.0.0:8000
+    volumes:
+      - ./kong/kong.yml:/kong/declarative/kong.yml:ro
+    ports:
+      # Gateway Proxy Entry Point (Bound strictly to 127.0.0.1 loopback)
+      - "127.0.0.1:8000:8000"
+      # Admin API (Bound strictly to 127.0.0.1 loopback; never 0.0.0.0)
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      user-service:
+        condition: service_healthy
+      operation-service:
+        condition: service_healthy
+      report-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "kong", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - coffee_network
+
+  # ===========================================================================
+  # 4. FRONTEND: Next.js 15 Client (Local Dev Server with Fast Refresh)
+  # ===========================================================================
+  frontend:
+    build:
+      context: ../coffee_shop_frontend
+      dockerfile: Dockerfile.dev
+    container_name: coffee_local_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://kong:8000}
+      WATCHPACK_POLLING: ${WATCHPACK_POLLING:-true}
+    volumes:
+      - ../coffee_shop_frontend:/app
+      - frontend_node_modules:/app/node_modules
+      - frontend_next:/app/.next
+    ports:
+      # Next.js web application (Bound strictly to 127.0.0.1 loopback)
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - kong
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:3000/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - coffee_network
+
+networks:
+  coffee_network:
+    name: coffee_local_network
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: coffee_local_postgres_data
+    driver: local
+  frontend_node_modules:
+    name: coffee_local_frontend_node_modules
+    driver: local
+  frontend_next:
+    name: coffee_local_frontend_next
+    driver: local
