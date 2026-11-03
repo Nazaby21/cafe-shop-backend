@@ -10,6 +10,7 @@ operation_service and report_service .env files: user_service is the only
 service that *issues* tokens (via /user/login), while the other services
 only *verify* them locally (stateless auth, no network call needed).
 """
+
 from datetime import datetime, timedelta, timezone
 from typing import Any
 

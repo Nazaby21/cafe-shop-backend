@@ -16,7 +16,6 @@ from app.schemas.user_schema import (
 
 
 class UserService:
-
     # ---------------------------------------------------------------- create
     def create_user(self, db: Session, request: CreateUserRequest) -> User:
         existing_email = user_repo.get_by_email(db, request.email)

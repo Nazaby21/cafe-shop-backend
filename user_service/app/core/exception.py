@@ -1,5 +1,6 @@
 from http import HTTPStatus
 
+
 class ApplicationError(Exception):
     def __init__(self, message: str, error_code: str, status_code: int):
         self.message = message
@@ -12,18 +13,13 @@ class ApplicationError(Exception):
 class UserNotFound(ApplicationError):
     def __init__(self, user_id: int):
         super().__init__(
-            message = f"User with id {user_id} not found",
-            error_code= "err_404",
-            status_code= HTTPStatus.NOT_FOUND
+            message=f"User with id {user_id} not found", error_code="err_404", status_code=HTTPStatus.NOT_FOUND
         )
+
 
 class EmailAlreadyExists(ApplicationError):
     def __init__(self, email: str):
-        super().__init__(
-            message= f"Email {email} already exists",
-            error_code= "err_409",
-            status_code=HTTPStatus.CONFLICT
-        )
+        super().__init__(message=f"Email {email} already exists", error_code="err_409", status_code=HTTPStatus.CONFLICT)
 
 
 class Unauthorized(ApplicationError):

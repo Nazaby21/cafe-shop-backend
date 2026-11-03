@@ -5,6 +5,7 @@ Typed settings loaded from environment variables (and an optional local
 Nothing secret has a default here: the service refuses to start without a
 JWT_SECRET_KEY, and refuses to start in production with a known-weak one.
 """
+
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -79,10 +80,7 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         if self.DATABASE_URL:
             return self.DATABASE_URL
-        return (
-            f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-        )
+        return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 
 settings = Settings()
