@@ -18,31 +18,25 @@ As required by the project safety guidelines, directory scan of `D:\Study\Year-4
 ---
 
 ## Block Tracking & Step Execution Status
-- **Current Step**: STEP 1 COMPLETED -> STARTING STEP 2 (FIX DOCKER BUILDS)
+- **Current Step**: STEP 2 COMPLETED -> STARTING STEP 3 (BUG HUNT)
 - **Step 0 Completed**: `2026-11-03T19:33:00+07:00`
 - **Step 1 Completed**: `2026-11-04T01:41:00+07:00`
-- **Output Artifacts**: `docs/09_DOCKER_BUILD_REPORT.md` (Table of reproductions & clean worktree analysis), `docs/build-logs/*.log`
+- **Step 2 Completed**: `2026-11-04T01:50:00+07:00`
+- **Output Artifacts**: `docs/09_DOCKER_BUILD_REPORT.md`, `docs/10_BUG_REPORT.md` (Starting), `docs/build-logs/*.log`
 
-### Step 0 Verification Summary
-- **Docker Engine**: Docker Desktop 4.98.0 (Engine 29.9.2), Linux container mode, WSL2 kernel (`6.6.87.1-microsoft-standard-WSL2`).
-- **Compose**: Docker Compose v5.6.1.
-- **BuildKit**: Active via `desktop-linux*` (BuildKit v0.34.0).
-- **Resources**: 15.44 GiB RAM, 16 CPUs, 4.01 GB build cache.
-- **Port Conflict**: Port 5432 is occupied on the Windows host by PID 8544 (`postgres`). Ports 3000, 8000, 8001, 8002, 8003 are free.
-- **Compose Files**: `docker-compose.local.yml` and `docker-compose.yml` validated cleanly from `coffee_shop/`.
-
-### Step 1 Reproduction Summary
-- Saved logs in `docs/build-logs/`: `user-service.log`, `operation-service.log`, `report-service.log`, `frontend.log`, `frontend-prod.log`, `full-stack-local.log`.
-- **Reproduced Build Failure**: Production `frontend` (`Dockerfile`) fails at step 13 with `"/app/public": not found` because `coffee_shop_frontend` lacks a `public` directory.
-- **Defect Identified (Context & Image Bloat)**: Neither `coffee_shop` nor `coffee_shop_frontend` had a `.dockerignore`. This caused host `.venv`, `.env` credentials, `__pycache__`, and host Windows `node_modules` (400MB+) to be copied into images, blowing `frontend` up to 2.63 GB.
-- **Defect Identified (Python Slim Images)**: `gcc` and `libpq-dev` installed 225MB of build tooling not needed at runtime since `psycopg2-binary` precompiled wheels are used.
+### Step 2 Docker Build Fix Summary
+- **Context Bloat & Secret Leak Fixed**: Added `.dockerignore` to `coffee_shop/` and `coffee_shop_frontend/`. Blocked `.env*`, `.venv`, `node_modules`, `__pycache__`, `.git`. Reduced context transfer from 12-58 MB down to 2-45 kB.
+- **Production Build Failure Resolved**: Fixed `coffee_shop_frontend/Dockerfile` by creating `public/.gitkeep` and adding defensive `mkdir -p /app/public`.
+- **Python Image Footprint Slashed**: Removed unneeded `gcc` and `libpq-dev` (since `psycopg2-binary` precompiled wheels are used). Slashed image sizes from 576-642 MB down to 293 MB each (-50%).
+- **Security Hardening**: Configured non-root user `nextjs:1001` in production frontend runner stage.
+- **Full Stack Validation**: Both `docker-compose.local.yml` and `docker-compose.yml` build with 0 errors.
 
 ---
 
 ## Next 3 Tasks
-1. **STEP 2 Fix 1**: Add comprehensive `.dockerignore` files to both `coffee_shop/` and `coffee_shop_frontend/` to block `.env`, `.venv`, `node_modules`, `__pycache__`, and `.git`.
-2. **STEP 2 Fix 2**: Fix `coffee_shop_frontend/Dockerfile` by creating `public/` directory with `.gitkeep` and supporting standalone Next.js build.
-3. **STEP 2 Fix 3**: Optimize Dockerfile layer caching and image footprint across backend services and frontend.
+1. **STEP 3 Batch 1 - Backend Bug Audit**: Run `ruff check` and `pytest` across `user_service`, `operation_service`, `report_service`, `libs`. Audit for blocking calls, unhandled exceptions, timezone-naive datetimes, and DB session leaks.
+2. **STEP 3 Batch 2 - Frontend Bug Audit**: Run `npm run lint` and `npx tsc --noEmit` in `coffee_shop_frontend`. Audit for hydration mismatches, unhandled promise rejections, and stale polling intervals.
+3. **STEP 3 Batch 3 - Gateway & Config Audit**: Validate `kong.yml` route `strip_path` settings against backend router prefixes, CORS configurations, and environment variable bindings.
 
 ## Dependencies Added / Removed
 - None (zero global packages installed).

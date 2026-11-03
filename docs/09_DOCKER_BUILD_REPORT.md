@@ -157,9 +157,29 @@
 
 ---
 
+## Step 2 Fix Verification & Metric Comparison
+
+Following Step 2 implementation, all services were re-tested with `--no-cache` builds.
+
+| Metric | Before Fix (Step 1) | After Fix (Step 2) | Improvement |
+|---|---|---|---|
+| `user-service` context transfer | 12.03 MB | 2.08 kB | **99.98% reduction** |
+| `operation-service` context transfer | 12.44 MB | 3.98 kB | **99.97% reduction** |
+| `report-service` context transfer | 58.39 MB | 45.52 kB | **99.92% reduction** |
+| `frontend` (local) context transfer | 2.07 MB | 7.97 kB | **99.61% reduction** |
+| `user-service` image size | 576 MB | 293 MB | **49.1% reduction** (-283 MB) |
+| `operation-service` image size | 577 MB | 293 MB | **49.2% reduction** (-284 MB) |
+| `report-service` image size | 642 MB | 293 MB | **54.4% reduction** (-349 MB) |
+| `frontend` (local) image size | 2.63 GB | 1.56 GB | **40.7% reduction** (-1.07 GB) |
+| `frontend` (prod) build status | **FAILED** (exit code 1) | **PASSED** (exit code 0, 1.26 GB) | **Resolved** |
+| Non-root user | Root (prod frontend) | Non-root `nextjs:1001` | **Secured** |
+
+---
+
 ## Clean Repository Worktree Verification
 Testing builds against a clean context without local uncommitted files:
 - Uncommitted / ignored local items on host: `operation_service/.env`, `report_service/.env`, `user_service/.env`, host `.venv`, IDE configurations.
-- Without `.dockerignore`, any local credentials in `.env` are baked into the image filesystem layers!
-- This was confirmed by inspecting `COPY user_service/ /app/user_service/` which copies `.env` and `__pycache__` unless ignored.
+- With `.dockerignore` applied in both `coffee_shop/` and `coffee_shop_frontend/`, credentials and local caches are strictly blocked from build contexts.
+- Both `docker-compose.local.yml` and `docker-compose.yml` pass full end-to-end multi-service builds cleanly.
+
 
