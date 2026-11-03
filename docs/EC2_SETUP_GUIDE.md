@@ -1,4 +1,7 @@
-# AWS EC2 Ubuntu Deployment & Operations Guide (`docs/EC2_SETUP_GUIDE.md`)
+# [ARCHIVED] AWS EC2 Ubuntu Deployment & Operations Guide (`docs/EC2_SETUP_GUIDE.md`)
+
+> [!NOTE]
+> **ARCHIVAL NOTICE**: This EC2 deployment guide is archived and retained for historical reference and potential future cloud deployments. The primary execution environment for this project is now **Docker Desktop on Windows with WSL2** using `docker-compose.local.yml`. Please refer to [`docs/LOCAL_DOCKER_GUIDE.md`](./LOCAL_DOCKER_GUIDE.md) for the active local instructions.
 
 > **Executive Summary**: This operations runbook provides complete, copy-pasteable instructions for provisioning, configuring, operating, and tearing down the Coffee Shop Kong APIM platform on an AWS EC2 instance running Ubuntu LTS in the Sydney region (`ap-southeast-2`). Every command is explicitly tagged with `[Windows]` or `[EC2]` to eliminate ambiguity.
 
