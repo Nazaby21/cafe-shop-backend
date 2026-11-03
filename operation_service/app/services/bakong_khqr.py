@@ -6,6 +6,7 @@ Complies with the National Bank of Cambodia (NBC) KHQR Specification and
 Bakong Open API v1 (/v1/check_transaction_by_md5, /v1/check_transaction_by_md5_list,
 /v1/renew_token, /v1/generate_deeplink_by_qr).
 """
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -208,9 +209,7 @@ def generate_khqr_string(
     # Tag 29 (Individual) or Tag 30 (Corporate Merchant)
     if merchant_id and acquiring_bank:
         merchant_account_info = (
-            _tlv("00", bank_account.strip())
-            + _tlv("01", merchant_id.strip())
-            + _tlv("02", acquiring_bank.strip()[:32])
+            _tlv("00", bank_account.strip()) + _tlv("01", merchant_id.strip()) + _tlv("02", acquiring_bank.strip()[:32])
         )
         segments.append(_tlv("30", merchant_account_info))
     else:
@@ -376,7 +375,12 @@ class RealBakongClient(BakongClientInterface):
             body = resp.json()
 
             # errorCode == 6 in NBC Bakong API indicates expired/invalid token even on HTTP 200
-            if body.get("responseCode") == 1 and body.get("errorCode") == 6 and not _retried_auth and self.registered_email:
+            if (
+                body.get("responseCode") == 1
+                and body.get("errorCode") == 6
+                and not _retried_auth
+                and self.registered_email
+            ):
                 self.renew_token()
                 return self.check_transaction_by_md5(qr_md5, _retried_auth=True)
 
@@ -700,12 +704,7 @@ class PaymentVerificationWorker:
         return recovered
 
     def _verify_single_job(self, db: Session, job: VerificationJob) -> None:
-        payment = (
-            db.query(Payment)
-            .filter(Payment.id == job.payment_id)
-            .with_for_update()
-            .first()
-        )
+        payment = db.query(Payment).filter(Payment.id == job.payment_id).with_for_update().first()
         if not payment or payment.status in (
             PaymentStatus.PAID,
             PaymentStatus.SUCCESS,
@@ -734,11 +733,7 @@ class PaymentVerificationWorker:
         if payment.expires_at and now >= payment.expires_at:
             prev_status = payment.status
             payment.status = PaymentStatus.EXPIRED
-            attempt = (
-                db.query(PaymentAttempt)
-                .filter(PaymentAttempt.qr_md5 == job.qr_md5)
-                .first()
-            )
+            attempt = db.query(PaymentAttempt).filter(PaymentAttempt.qr_md5 == job.qr_md5).first()
             if attempt:
                 attempt.status = PaymentStatus.EXPIRED
             db.add(
@@ -925,11 +920,7 @@ class PaymentVerificationWorker:
         if result.tx_hash:
             payment.transaction_ref = result.tx_hash[:64]
 
-        attempt = (
-            db.query(PaymentAttempt)
-            .filter(PaymentAttempt.qr_md5 == payment.qr_md5)
-            .first()
-        )
+        attempt = db.query(PaymentAttempt).filter(PaymentAttempt.qr_md5 == payment.qr_md5).first()
         if attempt:
             attempt.status = PaymentStatus.PAID
             attempt.paid_at = now

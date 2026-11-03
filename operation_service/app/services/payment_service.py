@@ -149,20 +149,13 @@ class PaymentService:
     ) -> Payment:
         account_id = self.resolved_bakong_account
         if not account_id:
-            raise PaymentGatewayNotConfigured(
-                "Bakong KHQR merchant account (BAKONG_ACCOUNT_ID) is not configured."
-            )
+            raise PaymentGatewayNotConfigured("Bakong KHQR merchant account (BAKONG_ACCOUNT_ID) is not configured.")
 
         order = self.order_service.get_order_by_id(db, order_id)
         if order.status != OrderStatus.PENDING:
             raise OrderNotPayable(order_id, order.status)
 
-        existing = (
-            db.query(Payment)
-            .filter(Payment.order_id == order_id)
-            .with_for_update()
-            .first()
-        )
+        existing = db.query(Payment).filter(Payment.order_id == order_id).with_for_update().first()
         if existing and existing.status in (PaymentStatus.PAID, PaymentStatus.SUCCESS):
             raise PaymentAlreadyExists(order_id)
 
@@ -311,12 +304,7 @@ class PaymentService:
         return worker.verify_payment_now(db, payment)
 
     def cancel_order_payment(self, db: Session, order_id: int, actor: str = "customer") -> Payment:
-        payment = (
-            db.query(Payment)
-            .filter(Payment.order_id == order_id)
-            .with_for_update()
-            .first()
-        )
+        payment = db.query(Payment).filter(Payment.order_id == order_id).with_for_update().first()
         if not payment:
             raise PaymentNotFound(order_id)
 
@@ -352,12 +340,7 @@ class PaymentService:
         request: RefundPaymentRequest,
         staff_user_id: int,
     ) -> Payment:
-        payment = (
-            db.query(Payment)
-            .filter(Payment.order_id == order_id)
-            .with_for_update()
-            .first()
-        )
+        payment = db.query(Payment).filter(Payment.order_id == order_id).with_for_update().first()
         if not payment:
             raise PaymentNotFound(order_id)
 

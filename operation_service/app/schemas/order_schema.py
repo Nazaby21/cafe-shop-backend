@@ -8,6 +8,7 @@ class OrderItemCustomizationRequest(BaseModel):
     group_id: int
     option_id: int
 
+
 class OrderItemRequest(BaseModel):
     product_id: int
     quantity: int = Field(gt=0)
@@ -30,6 +31,7 @@ class OrderItemCustomizationResponse(BaseModel):
     option_id: int
     option_name: str
     extra_price: Decimal
+
 
 class OrderItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)

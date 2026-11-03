@@ -7,10 +7,10 @@ from app.core.database import Base
 
 
 class StockMovementReason:
-    RESTOCK = "restock"          # manual stock-in by staff
-    SALE = "sale"                # decremented because an order was created
+    RESTOCK = "restock"  # manual stock-in by staff
+    SALE = "sale"  # decremented because an order was created
     CANCELLATION = "cancellation"  # restored because an order was cancelled
-    ADJUSTMENT = "adjustment"    # manual correction (stock take, damage, etc.)
+    ADJUSTMENT = "adjustment"  # manual correction (stock take, damage, etc.)
 
     ALL = (RESTOCK, SALE, CANCELLATION, ADJUSTMENT)
 

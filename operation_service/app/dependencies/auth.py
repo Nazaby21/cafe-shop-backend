@@ -16,6 +16,7 @@ class CurrentUser(BaseModel):
     claims issued by user_service. operation_service has no local users
     table, so the token itself (id/email/role) is the source of truth here.
     """
+
     id: int
     email: str
     role: str

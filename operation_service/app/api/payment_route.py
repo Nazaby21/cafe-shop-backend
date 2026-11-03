@@ -31,9 +31,7 @@ def pay_for_order(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_owner_or_staff(order_id, current_user, db)
-    payment = payment_service.pay_for_order(
-        db, order_id, request, actor=f"{current_user.role}:{current_user.id}"
-    )
+    payment = payment_service.pay_for_order(db, order_id, request, actor=f"{current_user.role}:{current_user.id}")
     msg = (
         "Bakong KHQR generated; awaiting customer scan"
         if payment.status == "pending"
@@ -92,9 +90,7 @@ def cancel_payment(
     current_user: CurrentUser = Depends(get_current_user),
 ):
     _ensure_owner_or_staff(order_id, current_user, db)
-    payment = payment_service.cancel_order_payment(
-        db, order_id, actor=f"{current_user.role}:{current_user.id}"
-    )
+    payment = payment_service.cancel_order_payment(db, order_id, actor=f"{current_user.role}:{current_user.id}")
     return ApiResponse(success=True, message="Payment cancelled successfully", data=payment)
 
 
@@ -147,7 +143,9 @@ def mock_pay_by_md5(
                     "status": "expired",
                 },
             )
-        return ApiResponse(success=True, message=f"Simulated expired payment for MD5 {md5}", data={"md5": md5, "status": "expired"})
+        return ApiResponse(
+            success=True, message=f"Simulated expired payment for MD5 {md5}", data={"md5": md5, "status": "expired"}
+        )
 
     if norm_status == "failed":
         if payment:
@@ -165,7 +163,9 @@ def mock_pay_by_md5(
                     "status": "failed",
                 },
             )
-        return ApiResponse(success=True, message=f"Simulated failed payment for MD5 {md5}", data={"md5": md5, "status": "failed"})
+        return ApiResponse(
+            success=True, message=f"Simulated failed payment for MD5 {md5}", data={"md5": md5, "status": "failed"}
+        )
 
     # Default 'paid' path
     mock_client = MockBakongClient.get_instance()

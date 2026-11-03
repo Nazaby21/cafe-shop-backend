@@ -8,17 +8,21 @@ class CustomizationOptionBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     extra_price: Decimal = Field(ge=0)
 
+
 class CustomizationOptionResponse(CustomizationOptionBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
+
 
 class CustomizationGroupBase(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     is_required: bool = False
     selection_type: str = Field(pattern="^(single|multiple)$")
 
+
 class CustomizationGroupCreate(CustomizationGroupBase):
     options: list[CustomizationOptionBase]
+
 
 class CustomizationGroupResponse(CustomizationGroupBase):
     id: int

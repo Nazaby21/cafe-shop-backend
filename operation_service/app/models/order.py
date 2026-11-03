@@ -69,7 +69,9 @@ class OrderItemCustomization(Base):
     __tablename__ = "order_item_customizations"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    order_item_id: Mapped[int] = mapped_column(ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_item_id: Mapped[int] = mapped_column(
+        ForeignKey("order_items.id", ondelete="CASCADE"), nullable=False, index=True
+    )
 
     group_id: Mapped[int] = mapped_column(Integer, nullable=False)
     group_name: Mapped[str] = mapped_column(String(100), nullable=False)

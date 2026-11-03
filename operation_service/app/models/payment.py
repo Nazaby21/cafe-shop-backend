@@ -108,12 +108,8 @@ class PaymentAttempt(Base):
     __table_args__ = (UniqueConstraint("payment_id", "attempt_number", name="uq_payment_attempt_number"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    payment_id: Mapped[int] = mapped_column(
-        ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    order_id: Mapped[int] = mapped_column(
-        ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     attempt_number: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default=PaymentCurrency.USD)
@@ -140,9 +136,7 @@ class PaymentEvent(Base):
     __tablename__ = "payment_events"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    payment_id: Mapped[int] = mapped_column(
-        ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True)
     order_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     event_type: Mapped[str] = mapped_column(String(64), nullable=False)
     previous_status: Mapped[str | None] = mapped_column(String(24), nullable=True)
@@ -161,12 +155,8 @@ class Refund(Base):
     __tablename__ = "refunds"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    payment_id: Mapped[int] = mapped_column(
-        ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    order_id: Mapped[int] = mapped_column(
-        ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True
-    )
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_id: Mapped[int] = mapped_column(ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
     amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default=PaymentCurrency.USD)
     reason: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -205,12 +195,8 @@ class VerificationJob(Base):
     __tablename__ = "verification_jobs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    payment_id: Mapped[int] = mapped_column(
-        ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True
-    )
-    attempt_id: Mapped[int | None] = mapped_column(
-        ForeignKey("payment_attempts.id", ondelete="CASCADE"), nullable=True
-    )
+    payment_id: Mapped[int] = mapped_column(ForeignKey("payments.id", ondelete="CASCADE"), nullable=False, index=True)
+    attempt_id: Mapped[int | None] = mapped_column(ForeignKey("payment_attempts.id", ondelete="CASCADE"), nullable=True)
     order_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
     qr_md5: Mapped[str] = mapped_column(String(32), nullable=False, unique=True, index=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="queued", index=True)

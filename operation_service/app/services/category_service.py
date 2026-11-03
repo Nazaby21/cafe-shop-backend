@@ -4,17 +4,28 @@ from app.core.exception import ApplicationError
 from app.repository.category_repository import CategoryRepository
 from app.schemas.category_schema import CreateCategoryRequest, UpdateCategoryRequest
 
+
 class CategoryAlreadyExists(ApplicationError):
     def __init__(self, name: str):
-        super().__init__(message=f"Category '{name}' already exists", error_code="err_400_category_exists", status_code=400)
+        super().__init__(
+            message=f"Category '{name}' already exists", error_code="err_400_category_exists", status_code=400
+        )
+
 
 class CategoryNotFound(ApplicationError):
     def __init__(self, category_id: int):
-        super().__init__(message=f"Category {category_id} not found", error_code="err_404_category_not_found", status_code=404)
+        super().__init__(
+            message=f"Category {category_id} not found", error_code="err_404_category_not_found", status_code=404
+        )
+
 
 class CategoryInUse(ApplicationError):
     def __init__(self):
-        super().__init__(message="Cannot delete category that is currently assigned to products", error_code="err_400_category_in_use", status_code=400)
+        super().__init__(
+            message="Cannot delete category that is currently assigned to products",
+            error_code="err_400_category_in_use",
+            status_code=400,
+        )
 
 
 class CategoryService:

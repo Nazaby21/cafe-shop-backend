@@ -2,6 +2,7 @@
 Typed settings loaded from environment variables (and an optional local
 ``.env`` file, which is git-ignored - copy ``.env.example``).
 """
+
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -90,10 +91,7 @@ class Settings(BaseSettings):
     def database_url(self) -> str:
         if self.DATABASE_URL:
             return self.DATABASE_URL
-        return (
-            f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-        )
+        return f"postgresql+psycopg2://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
 
 
 settings = Settings()

@@ -18,7 +18,6 @@ from app.services.stock_service import StockService
 
 
 class OrderService:
-
     def __init__(self):
         self.stock_service = StockService()
 
@@ -60,6 +59,7 @@ class OrderService:
                 item_customizations = []
                 if item.customizations:
                     from app.models.customization import CustomizationGroup, CustomizationOption
+
                     for c_req in item.customizations:
                         group = db.query(CustomizationGroup).filter(CustomizationGroup.id == c_req.group_id).first()
                         option = db.query(CustomizationOption).filter(CustomizationOption.id == c_req.option_id).first()
@@ -71,7 +71,7 @@ class OrderService:
                                     group_name=group.name,
                                     option_id=option.id,
                                     option_name=option.name,
-                                    extra_price=float(option.extra_price)
+                                    extra_price=float(option.extra_price),
                                 )
                             )
 

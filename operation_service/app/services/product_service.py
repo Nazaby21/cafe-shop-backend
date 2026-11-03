@@ -13,8 +13,8 @@ from app.services.stock_service import StockService
 from app.repository.category_repository import CategoryRepository
 from app.services.category_service import CategoryNotFound
 
-class ProductService:
 
+class ProductService:
     def __init__(self):
         self.stock_service = StockService()
         self.category_repo = CategoryRepository()
@@ -39,12 +39,9 @@ class ProductService:
         )
         if request.customization_groups:
             from app.models.customization import CustomizationGroup, CustomizationOption
+
             for grp in request.customization_groups:
-                cg = CustomizationGroup(
-                    name=grp.name,
-                    is_required=grp.is_required,
-                    selection_type=grp.selection_type
-                )
+                cg = CustomizationGroup(name=grp.name, is_required=grp.is_required, selection_type=grp.selection_type)
                 for opt in grp.options:
                     cg.options.append(CustomizationOption(name=opt.name, extra_price=opt.extra_price))
                 product.customization_groups.append(cg)
@@ -102,13 +99,10 @@ class ProductService:
 
         if request.customization_groups is not None:
             from app.models.customization import CustomizationGroup, CustomizationOption
+
             product.customization_groups.clear()
             for grp in request.customization_groups:
-                cg = CustomizationGroup(
-                    name=grp.name,
-                    is_required=grp.is_required,
-                    selection_type=grp.selection_type
-                )
+                cg = CustomizationGroup(name=grp.name, is_required=grp.is_required, selection_type=grp.selection_type)
                 for opt in grp.options:
                     cg.options.append(CustomizationOption(name=opt.name, extra_price=opt.extra_price))
                 product.customization_groups.append(cg)

@@ -70,10 +70,7 @@ class ProductInactive(ApplicationError):
 class InsufficientStock(ApplicationError):
     def __init__(self, product_id: int, requested: int, available: int):
         super().__init__(
-            message=(
-                f"Insufficient stock for product {product_id}: "
-                f"requested {requested}, only {available} available"
-            ),
+            message=(f"Insufficient stock for product {product_id}: requested {requested}, only {available} available"),
             error_code="err_409_insufficient_stock",
             status_code=HTTPStatus.CONFLICT,
         )

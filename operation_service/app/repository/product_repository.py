@@ -13,12 +13,7 @@ def get_by_id(db: Session, product_id: int):
 
 def get_by_id_for_update(db: Session, product_id: int):
     """Row-level lock so concurrent orders can't oversell the same stock."""
-    return (
-        db.query(Product)
-        .filter(Product.id == product_id, Product.deleted_at.is_(None))
-        .with_for_update()
-        .first()
-    )
+    return db.query(Product).filter(Product.id == product_id, Product.deleted_at.is_(None)).with_for_update().first()
 
 
 def create(db: Session, product: Product) -> Product:

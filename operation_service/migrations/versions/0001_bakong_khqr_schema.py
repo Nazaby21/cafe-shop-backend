@@ -4,6 +4,7 @@ Revision ID: 0001_bakong_khqr
 Revises: None
 Create Date: 2026-11-02
 """
+
 from typing import Sequence, Union
 
 import sqlalchemy as sa

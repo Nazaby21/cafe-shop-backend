@@ -4,6 +4,7 @@ This module simply verifies the signature/expiry of tokens issued elsewhere,
 using the shared JWT_SECRET_KEY / JWT_ALGORITHM. This keeps services loosely
 coupled: no network call back to user_service is needed on every request.
 """
+
 from typing import Any
 
 import jwt

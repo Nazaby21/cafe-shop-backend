@@ -11,7 +11,7 @@ class CustomizationGroup(Base):
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
     name: Mapped[str] = mapped_column(String(100))
     is_required: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
-    selection_type: Mapped[str] = mapped_column(String(20), default="single") # 'single' or 'multiple'
+    selection_type: Mapped[str] = mapped_column(String(20), default="single")  # 'single' or 'multiple'
 
     options: Mapped[list["CustomizationOption"]] = relationship(
         "CustomizationOption", back_populates="group", cascade="all, delete-orphan"
