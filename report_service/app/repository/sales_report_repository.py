@@ -14,14 +14,18 @@ def _range_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime]
 
 def count_orders_in_range(db: Session, start_date: date, end_date: date) -> int:
     start_dt, end_dt = _range_bounds(start_date, end_date)
-    return db.query(OrderSnapshot).filter(OrderSnapshot.created_at >= start_dt, OrderSnapshot.created_at <= end_dt).count()
+    return (
+        db.query(OrderSnapshot).filter(OrderSnapshot.created_at >= start_dt, OrderSnapshot.created_at <= end_dt).count()
+    )
 
 
 def count_orders_by_status_in_range(db: Session, start_date: date, end_date: date, status: str) -> int:
     start_dt, end_dt = _range_bounds(start_date, end_date)
     return (
         db.query(OrderSnapshot)
-        .filter(OrderSnapshot.created_at >= start_dt, OrderSnapshot.created_at <= end_dt, OrderSnapshot.status == status)
+        .filter(
+            OrderSnapshot.created_at >= start_dt, OrderSnapshot.created_at <= end_dt, OrderSnapshot.status == status
+        )
         .count()
     )
 
@@ -44,7 +48,11 @@ def daily_sales_in_range(db: Session, start_date: date, end_date: date):
     start_dt, end_dt = _range_bounds(start_date, end_date)
     day_expr = func.date(OrderSnapshot.created_at)
     rows = (
-        db.query(day_expr.label("day"), func.count(OrderSnapshot.order_id), func.coalesce(func.sum(OrderSnapshot.total_amount), 0))
+        db.query(
+            day_expr.label("day"),
+            func.count(OrderSnapshot.order_id),
+            func.coalesce(func.sum(OrderSnapshot.total_amount), 0),
+        )
         .filter(
             OrderSnapshot.created_at >= start_dt,
             OrderSnapshot.created_at <= end_dt,

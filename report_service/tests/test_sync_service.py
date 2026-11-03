@@ -16,9 +16,7 @@ def test_sync_upserts_and_purges_stale(db_session):
     products_page_1 = api_page([product_payload(10), product_payload(20)])
     orders_page_1 = api_page([order_payload(101, 1), order_payload(102, 2)])
 
-    u_route = respx.get(f"{settings.USER_SERVICE_BASE_URL}/user").mock(
-        return_value=Response(200, json=users_page_1)
-    )
+    u_route = respx.get(f"{settings.USER_SERVICE_BASE_URL}/user").mock(return_value=Response(200, json=users_page_1))
     p_route = respx.get(f"{settings.OPERATION_SERVICE_BASE_URL}/product").mock(
         return_value=Response(200, json=products_page_1)
     )

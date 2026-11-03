@@ -119,7 +119,9 @@ class SyncService:
         stale_count = len(stale_ids)
 
         if stale_ids:
-            db.query(ProductSnapshot).filter(ProductSnapshot.product_id.in_(stale_ids)).delete(synchronize_session=False)
+            db.query(ProductSnapshot).filter(ProductSnapshot.product_id.in_(stale_ids)).delete(
+                synchronize_session=False
+            )
 
         db.commit()
         return synced_count, stale_count
@@ -172,7 +174,9 @@ class SyncService:
         stale_count = len(stale_ids)
 
         if stale_ids:
-            db.query(OrderItemSnapshot).filter(OrderItemSnapshot.order_id.in_(stale_ids)).delete(synchronize_session=False)
+            db.query(OrderItemSnapshot).filter(OrderItemSnapshot.order_id.in_(stale_ids)).delete(
+                synchronize_session=False
+            )
             db.query(OrderSnapshot).filter(OrderSnapshot.order_id.in_(stale_ids)).delete(synchronize_session=False)
 
         db.commit()

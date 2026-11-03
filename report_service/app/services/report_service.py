@@ -15,7 +15,6 @@ from app.schemas.report_schema import (
 
 
 class ReportService:
-
     @staticmethod
     def _validate_range(start_date: date, end_date: date):
         if start_date > end_date:
@@ -47,10 +46,7 @@ class ReportService:
     def daily_sales(self, db: Session, start_date: date, end_date: date) -> list[DailySalesPoint]:
         self._validate_range(start_date, end_date)
         rows = sales_repo.daily_sales_in_range(db, start_date, end_date)
-        return [
-            DailySalesPoint(day=row[0], order_count=row[1], revenue=round(float(row[2]), 2))
-            for row in rows
-        ]
+        return [DailySalesPoint(day=row[0], order_count=row[1], revenue=round(float(row[2]), 2)) for row in rows]
 
     def top_products(self, db: Session, start_date: date, end_date: date, limit: int = 10) -> list[TopProductResponse]:
         self._validate_range(start_date, end_date)

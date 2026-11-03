@@ -17,11 +17,7 @@ def count_active(db: Session) -> int:
 def count_new_in_range(db: Session, start_date: date, end_date: date) -> int:
     start_dt = datetime.combine(start_date, datetime.min.time())
     end_dt = datetime.combine(end_date, datetime.max.time())
-    return (
-        db.query(UserSnapshot)
-        .filter(UserSnapshot.created_at >= start_dt, UserSnapshot.created_at <= end_dt)
-        .count()
-    )
+    return db.query(UserSnapshot).filter(UserSnapshot.created_at >= start_dt, UserSnapshot.created_at <= end_dt).count()
 
 
 def count_by_role(db: Session) -> dict[str, int]:

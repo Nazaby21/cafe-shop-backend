@@ -10,7 +10,7 @@ class SalesSummaryResponse(BaseModel):
     total_orders: int
     paid_orders: int
     cancelled_orders: int
-    total_revenue: Decimal          # sum of total_amount for paid/completed orders
+    total_revenue: Decimal  # sum of total_amount for paid/completed orders
     average_order_value: Decimal
 
 

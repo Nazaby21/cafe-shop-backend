@@ -12,6 +12,7 @@ class UserSnapshot(Base):
     owns this table outright. It is refreshed by SyncService pulling
     GET /user from user_service; it is never written to by anyone else.
     """
+
     __tablename__ = "users_snapshot"
 
     user_id: Mapped[int] = mapped_column(primary_key=True)  # same id as in user_service, not autoincrement here
@@ -25,6 +26,7 @@ class UserSnapshot(Base):
 
 class ProductSnapshot(Base):
     """Local copy of operation_service's products, refreshed by SyncService."""
+
     __tablename__ = "products_snapshot"
 
     product_id: Mapped[int] = mapped_column(primary_key=True)
@@ -37,6 +39,7 @@ class ProductSnapshot(Base):
 
 class OrderSnapshot(Base):
     """Local copy of operation_service's orders, refreshed by SyncService."""
+
     __tablename__ = "orders_snapshot"
 
     order_id: Mapped[int] = mapped_column(primary_key=True)
@@ -46,13 +49,12 @@ class OrderSnapshot(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime)
     synced_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
-    items: Mapped[list["OrderItemSnapshot"]] = relationship(
-        cascade="all, delete-orphan", lazy="selectin"
-    )
+    items: Mapped[list["OrderItemSnapshot"]] = relationship(cascade="all, delete-orphan", lazy="selectin")
 
 
 class OrderItemSnapshot(Base):
     """Local copy of operation_service's order_items, refreshed by SyncService."""
+
     __tablename__ = "order_items_snapshot"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
