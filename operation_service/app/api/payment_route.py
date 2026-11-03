@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -115,11 +115,13 @@ payment_root_router = APIRouter(prefix="/payment", tags=["payment-operations"])
 @payment_root_router.post("/mock-pay/{md5}")
 def mock_pay_by_md5(
     md5: str,
+    status: str = Query("paid", description="Simulated outcome: paid | expired | failed"),
     db: Session = Depends(get_db),
 ):
     """
     Simulates customer settlement for the specified KHQR MD5 hash.
     Enabled ONLY when BAKONG_MODE is 'mock' (returns 403 Forbidden otherwise).
+    Supports status: 'paid' (default), 'expired', 'failed'.
     """
     if getattr(settings, "BAKONG_MODE", "mock") != "mock":
         raise Forbidden("Mock payment endpoint is disabled when BAKONG_MODE is not 'mock'")
@@ -127,10 +129,48 @@ def mock_pay_by_md5(
     from app.models.payment import Payment
     from app.services.bakong_khqr import MockBakongClient, PaymentVerificationWorker
 
+    payment = db.query(Payment).filter(Payment.qr_md5 == md5).first()
+    norm_status = status.strip().lower()
+
+    if norm_status == "expired":
+        if payment:
+            payment.status = "expired"
+            db.commit()
+            db.refresh(payment)
+            return ApiResponse(
+                success=True,
+                message=f"Simulated payment expiration for MD5 {md5}",
+                data={
+                    "md5": md5,
+                    "payment_id": payment.id,
+                    "order_id": payment.order_id,
+                    "status": "expired",
+                },
+            )
+        return ApiResponse(success=True, message=f"Simulated expired payment for MD5 {md5}", data={"md5": md5, "status": "expired"})
+
+    if norm_status == "failed":
+        if payment:
+            payment.status = "failed"
+            payment.failure_reason = "Simulated bank payment failure"
+            db.commit()
+            db.refresh(payment)
+            return ApiResponse(
+                success=True,
+                message=f"Simulated payment failure for MD5 {md5}",
+                data={
+                    "md5": md5,
+                    "payment_id": payment.id,
+                    "order_id": payment.order_id,
+                    "status": "failed",
+                },
+            )
+        return ApiResponse(success=True, message=f"Simulated failed payment for MD5 {md5}", data={"md5": md5, "status": "failed"})
+
+    # Default 'paid' path
     mock_client = MockBakongClient.get_instance()
     mock_client.simulate_payment(md5)
 
-    payment = db.query(Payment).filter(Payment.qr_md5 == md5).first()
     if payment:
         worker = PaymentVerificationWorker(bakong_client=mock_client)
         payment = worker.verify_payment_now(db, payment)
