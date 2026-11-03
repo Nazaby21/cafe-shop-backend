@@ -118,7 +118,7 @@ services:
   # 3. API GATEWAY: Kong Gateway OSS 3.9 (DB-less Declarative Mode)
   # ===========================================================================
   kong:
-    image: kong:3.9-alpine
+    image: kong:3.9
     container_name: coffee_kong_gateway
     restart: unless-stopped
     environment:
