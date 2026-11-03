@@ -13,6 +13,7 @@ with verification of:
 
 All tests execute against dedicated PostgreSQL test databases (PostgreSQL only; no SQLite).
 """
+
 import os
 import subprocess
 import sys
@@ -42,6 +43,7 @@ def get_service_test_db_url(service_dir: str, default_db: str) -> str:
         try:
             os.chdir(str(REPO_ROOT / service_dir))
             from app.core.config import settings
+
             base_url = settings.database_url
             parsed = urlparse(base_url)
             return urlunparse(parsed._replace(path=f"/{default_db}"))

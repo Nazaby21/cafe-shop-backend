@@ -9,6 +9,7 @@ Usage:
     python scripts/check_mock_patterns.py            # scan all tracked files
     python scripts/check_mock_patterns.py FILE...    # scan given files (pre-commit)
 """
+
 from __future__ import annotations
 
 import re

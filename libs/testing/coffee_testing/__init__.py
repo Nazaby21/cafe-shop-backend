@@ -10,6 +10,7 @@ Test-data marker convention (used by seed + cleanup scripts too):
   * products:  name prefix ``[TEST] ``
   * categories: name prefix ``[TEST] ``
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
@@ -71,7 +72,9 @@ def api_page(items: list[dict], page: int = 1, page_size: int = 100, total_items
     }
 
 
-def user_payload(user_id: int, role: str = "customer", is_active: bool = True, created_at: str = "2026-01-15T10:00:00") -> dict:
+def user_payload(
+    user_id: int, role: str = "customer", is_active: bool = True, created_at: str = "2026-01-15T10:00:00"
+) -> dict:
     return {
         "id": user_id,
         "username": f"test_user{user_id}",

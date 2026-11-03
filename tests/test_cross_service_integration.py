@@ -1,6 +1,7 @@
 """
 Automated pytest wrapper for the cross-service integration check.
 """
+
 import sys
 from pathlib import Path
 
