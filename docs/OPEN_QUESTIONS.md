@@ -50,3 +50,27 @@
 ### Q10: Legacy SQLite Binary Files Row Count
 - **Verification**: `user_service.db`, `operation_service.db`, and `report_service.db` were inspected via python `sqlite3`. All tables had **0 rows**.
 - **Action**: No data extraction or schema migration script needed; all models and migrations are defined in SQLAlchemy and Alembic. Database files are listed in `CLEANUP_REPORT_SQLITE.md` and safely marked for deletion.
+
+---
+
+## 4. Local Docker Desktop & Windows Development Stack Decisions
+
+### Q11: Windows Drive Bind Mounts & Inotify Event Propagation
+- **Problem**: Mounting directories from Windows NTFS (`D:\...`) into Linux containers via Docker Desktop / WSL2 uses 9P filesystem translation, which frequently fails to deliver Linux kernel `inotify` change events to processes inside containers.
+- **Decision**: Explicitly configured `WATCHFILES_FORCE_POLLING=true` in FastAPI services and `WATCHPACK_POLLING=true` in Next.js.
+- **Tradeoff**: Increases CPU usage slightly (typically ~1-2%), but guarantees reliable hot-reloading across Windows file edits without restarting containers.
+
+### Q12: Anonymous Container Volumes for `node_modules` and `.venv`
+- **Problem**: If the root workspace is mounted into a Linux container (`- .:/app`), the host Windows directory will overwrite the container's Linux-compiled `node_modules` and Python `.venv` binaries, causing ELF/PE binary mismatch errors.
+- **Decision**: Configured anonymous / named volumes over `/app/node_modules`, `/app/.next`, and `/app/.venv`.
+- **Outcome**: The container retains Linux-native binaries and dependencies, while all TypeScript/Python source files remain live-synced from the Windows host.
+
+### Q13: Next.js SSR Dual Endpoint Resolution
+- **Problem**: Next.js code executing on the browser must call `http://localhost:8000` (which resolves on the user's host machine to Kong). If that same code executes on the server side (SSR, Server Components) inside the container, `http://localhost:8000` attempts to connect to the frontend container itself and fails with `ECONNREFUSED`.
+- **Decision**: Updated `coffee_shop_frontend/src/config/env.ts` and `src/services/axios.ts` to inspect `typeof window === 'undefined'`. Client-side requests route to `NEXT_PUBLIC_API_BASE_URL` (`http://localhost:8000`); server-side container requests route to `INTERNAL_API_BASE_URL` (`http://kong:8000`).
+
+### Q14: Strict 127.0.0.1 Loopback Host Binding
+- **Problem**: Default compose port bindings like `8000:8000` bind to `0.0.0.0:8000`, exposing the local gateway and dev database to the local LAN or Wi-Fi network.
+- **Decision**: All published ports in `docker-compose.local.yml` explicitly bind to `127.0.0.1` (`127.0.0.1:8000:8000`, `127.0.0.1:8001:8001`, `127.0.0.1:5432:5432`, `127.0.0.1:3000:3000`). Internal microservices publish NO host ports.
+- **Outcome**: Strict local developer security perimeter with zero external LAN attack surface.
+
