@@ -39,6 +39,11 @@ ISO_CURRENCY_CODES = {
 }
 
 
+def utc_now() -> datetime:
+    """Return current UTC timestamp as timezone-naive datetime matching DB storage."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
 class BakongConfigurationError(ApplicationError):
     def __init__(self, message: str):
         super().__init__(message=message, error_code="err_503_bakong_config", status_code=503)
@@ -609,7 +614,7 @@ class PaymentVerificationWorker:
         Claims up to `batch_size` queued verification jobs using FOR UPDATE SKIP LOCKED
         and verifies each against the Bakong Open API.
         """
-        now = datetime.now()
+        now = utc_now()
         jobs = (
             db.query(VerificationJob)
             .filter(
@@ -669,7 +674,7 @@ class PaymentVerificationWorker:
         Reconciliation job: checks recently expired payments via Bakong API to catch
         late payments where the customer scanned before expiry and confirmed slightly after.
         """
-        cutoff = datetime.now() - timedelta(minutes=lookback_minutes)
+        cutoff = utc_now() - timedelta(minutes=lookback_minutes)
         expired_payments = (
             db.query(Payment)
             .filter(
@@ -710,7 +715,7 @@ class PaymentVerificationWorker:
             job.status = "completed"
             return
 
-        now = datetime.now()
+        now = utc_now()
         try:
             result = self.bakong_client.check_transaction_by_md5(job.qr_md5)
         except httpx.HTTPError as exc:
@@ -879,7 +884,7 @@ class PaymentVerificationWorker:
             )
 
         order = db.query(Order).filter(Order.id == payment.order_id).with_for_update().first()
-        now = datetime.now()
+        now = utc_now()
         prev_status = payment.status
 
         if order and order.status == OrderStatus.CANCELLED:

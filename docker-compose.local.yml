@@ -17,7 +17,8 @@ services:
       - ./postgres/init-databases.sh:/docker-entrypoint-initdb.d/init-databases.sh:ro
     ports:
       # Bound strictly to 127.0.0.1 loopback for Windows dev tools (DBeaver, psql, IDEs)
-      - "127.0.0.1:5432:5432"
+      # Configurable via POSTGRES_HOST_PORT if host 5432 is in use by another local PostgreSQL instance
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${POSTGRES_DB:-postgres}"]
       interval: 5s

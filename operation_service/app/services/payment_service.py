@@ -33,6 +33,7 @@ from app.services.bakong_khqr import (
     convert_usd_to_khr,
     generate_khqr_string,
     get_bakong_client,
+    utc_now,
 )
 from app.services.order_service import OrderService
 
@@ -165,7 +166,7 @@ class PaymentService:
         if existing and existing.status in (PaymentStatus.PAID, PaymentStatus.SUCCESS):
             raise PaymentAlreadyExists(order_id)
 
-        now = datetime.now()
+        now = utc_now()
         # Idempotent return of active unexpired pending KHQR if currency matches and not forcing regeneration
         if (
             existing
@@ -363,7 +364,7 @@ class PaymentService:
         if not PaymentStatus.can_transition(payment.status, PaymentStatus.REFUNDED):
             raise BakongStateError(f"Cannot refund payment in status '{payment.status}'")
 
-        now = datetime.now()
+        now = utc_now()
         prev = payment.status
         payment.status = PaymentStatus.REFUNDED
         db.add(
@@ -400,7 +401,7 @@ class PaymentService:
             payment
             and payment.status == PaymentStatus.PENDING
             and payment.expires_at
-            and datetime.now() >= payment.expires_at
+            and utc_now() >= payment.expires_at
         ):
             payment.status = PaymentStatus.EXPIRED
             db.commit()

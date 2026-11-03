@@ -30,6 +30,7 @@ from app.services.bakong_khqr import (
     generate_khqr_string,
     mask_bakong_account,
     parse_khqr_tlv,
+    utc_now,
     verify_khqr_crc,
 )
 from coffee_testing import TEST_NAME_PREFIX, auth_header
@@ -279,7 +280,7 @@ def test_worker_handles_expired_qr_and_regeneration(client, db_session, monkeypa
 
     # Force expires_at into the past to simulate QR expiration
     payment = db_session.query(Payment).filter(Payment.order_id == order_id).first()
-    payment.expires_at = datetime.now() - timedelta(seconds=10)
+    payment.expires_at = utc_now() - timedelta(seconds=10)
     db_session.commit()
 
     with respx.mock(base_url=BAKONG_TEST_BASE_URL) as rmock:
@@ -352,7 +353,7 @@ def test_worker_handles_bakong_timeout_and_token_auto_renewal(db_session, monkey
     assert "timeout" in (job.last_error or "").lower()
 
     # Reset next_run_at so job is due immediately for Case B
-    job.next_run_at = datetime.now() - timedelta(seconds=1)
+    job.next_run_at = utc_now() - timedelta(seconds=1)
     db_session.commit()
 
     # Case B: Bakong returns errorCode=6 (token expired) -> auto-calls /v1/renew_token then succeeds!
