@@ -1,0 +1,42 @@
+# Git and IDE
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+
+# Python Virtual Environments and Caches
+.venv
+venv
+*/.venv
+*/venv
+__pycache__
+**/__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+**/.pytest_cache
+.ruff_cache
+**/.ruff_cache
+.mypy_cache
+**/.mypy_cache
+*.egg-info
+**/*.egg-info
+
+# Secrets, Environment Files & Certificates
+.env
+.env.*
+!.env.example
+*.pem
+**/*.pem
+
+# Local Databases and Backups
+*.db
+*.sqlite*
+*.sqlite3
+backups
+**/backups
+
+# Documentation and Build Logs
+docs/
+**/docs/
