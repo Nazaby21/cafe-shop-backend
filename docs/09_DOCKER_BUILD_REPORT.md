@@ -145,8 +145,21 @@
 
 ---
 
-## Service Build Reproduction Table (Step 1 Pending)
+## Service Build Reproduction Table (Step 1 Completed)
 
 | Service | Result | First failing step | Error (exact, short) | Root cause | Fix |
 |---|---|---|---|---|---|
-| *Pending Step 1* | | | | | |
+| `user-service` (local) | Passed with defects | N/A (Build passed, image size 576 MB) | Context bloat (12.0 MB transferred), `.venv`/secrets copied | Missing `.dockerignore` in `coffee_shop`; runtime includes unnecessary build tools (`gcc`, `libpq-dev`) despite `psycopg2-binary` | Add `.dockerignore` excluding `.venv`, `.env*`, `__pycache__`, `.git`; optimize Dockerfile |
+| `operation-service` (local) | Passed with defects | N/A (Build passed, image size 577 MB) | Context bloat (12.4 MB transferred), `.venv`/secrets copied | Missing `.dockerignore` in `coffee_shop`; runtime includes unnecessary build tools (`gcc`, `libpq-dev`) despite `psycopg2-binary` | Add `.dockerignore` excluding `.venv`, `.env*`, `__pycache__`, `.git`; optimize Dockerfile |
+| `report-service` (local) | Passed with defects | N/A (Build passed, image size 642 MB) | Massive context bloat (58.4 MB transferred), `.venv`/secrets copied | Missing `.dockerignore` in `coffee_shop`; runtime includes unnecessary build tools (`gcc`, `libpq-dev`) despite `psycopg2-binary` | Add `.dockerignore` excluding `.venv`, `.env*`, `__pycache__`, `.git`; optimize Dockerfile |
+| `frontend` (local `Dockerfile.dev`) | Passed with defects | N/A (Build passed, image size 2.63 GB) | Extreme image bloat (2.63 GB), host `node_modules` copied | Missing `.dockerignore` in `coffee_shop_frontend`; host Windows `node_modules` and `.next` copied into Linux container | Add `.dockerignore` in `coffee_shop_frontend` excluding `node_modules`, `.next`, `.env*` |
+| `frontend` (prod `Dockerfile`) | **FAILED** | Step 13 `[runner 3/6] COPY --from=builder /app/public ./public` | `"/app/public": not found` | `coffee_shop_frontend/` has no `public` directory; `COPY` fails when source directory does not exist | Ensure `/app/public` exists (e.g. `mkdir -p /app/public` in builder stage or create `public/.gitkeep`); add `.dockerignore` |
+
+---
+
+## Clean Repository Worktree Verification
+Testing builds against a clean context without local uncommitted files:
+- Uncommitted / ignored local items on host: `operation_service/.env`, `report_service/.env`, `user_service/.env`, host `.venv`, IDE configurations.
+- Without `.dockerignore`, any local credentials in `.env` are baked into the image filesystem layers!
+- This was confirmed by inspecting `COPY user_service/ /app/user_service/` which copies `.env` and `__pycache__` unless ignored.
+

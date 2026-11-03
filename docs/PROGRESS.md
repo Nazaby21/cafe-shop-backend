@@ -18,9 +18,10 @@ As required by the project safety guidelines, directory scan of `D:\Study\Year-4
 ---
 
 ## Block Tracking & Step Execution Status
-- **Current Step**: STEP 0 COMPLETED -> STARTING STEP 1
+- **Current Step**: STEP 1 COMPLETED -> STARTING STEP 2 (FIX DOCKER BUILDS)
 - **Step 0 Completed**: `2026-11-03T19:33:00+07:00`
-- **Output Artifact**: `docs/09_DOCKER_BUILD_REPORT.md` (Section: "Environment (Preflight Verification)")
+- **Step 1 Completed**: `2026-11-04T01:41:00+07:00`
+- **Output Artifacts**: `docs/09_DOCKER_BUILD_REPORT.md` (Table of reproductions & clean worktree analysis), `docs/build-logs/*.log`
 
 ### Step 0 Verification Summary
 - **Docker Engine**: Docker Desktop 4.98.0 (Engine 29.9.2), Linux container mode, WSL2 kernel (`6.6.87.1-microsoft-standard-WSL2`).
@@ -30,12 +31,18 @@ As required by the project safety guidelines, directory scan of `D:\Study\Year-4
 - **Port Conflict**: Port 5432 is occupied on the Windows host by PID 8544 (`postgres`). Ports 3000, 8000, 8001, 8002, 8003 are free.
 - **Compose Files**: `docker-compose.local.yml` and `docker-compose.yml` validated cleanly from `coffee_shop/`.
 
+### Step 1 Reproduction Summary
+- Saved logs in `docs/build-logs/`: `user-service.log`, `operation-service.log`, `report-service.log`, `frontend.log`, `frontend-prod.log`, `full-stack-local.log`.
+- **Reproduced Build Failure**: Production `frontend` (`Dockerfile`) fails at step 13 with `"/app/public": not found` because `coffee_shop_frontend` lacks a `public` directory.
+- **Defect Identified (Context & Image Bloat)**: Neither `coffee_shop` nor `coffee_shop_frontend` had a `.dockerignore`. This caused host `.venv`, `.env` credentials, `__pycache__`, and host Windows `node_modules` (400MB+) to be copied into images, blowing `frontend` up to 2.63 GB.
+- **Defect Identified (Python Slim Images)**: `gcc` and `libpq-dev` installed 225MB of build tooling not needed at runtime since `psycopg2-binary` precompiled wheels are used.
+
 ---
 
 ## Next 3 Tasks
-1. Execute **STEP 1**: Create `docs/build-logs/` and individually build every service (`user-service`, `operation-service`, `report-service`, `frontend`) with `--no-cache --progress=plain`, saving logs to `docs/build-logs/<service>.log`.
-2. Populate the failure reproduction table in `docs/09_DOCKER_BUILD_REPORT.md` with exact errors, root causes, and planned fixes.
-3. Test a build from a clean workspace / worktree to detect untracked or ignored dependency files.
+1. **STEP 2 Fix 1**: Add comprehensive `.dockerignore` files to both `coffee_shop/` and `coffee_shop_frontend/` to block `.env`, `.venv`, `node_modules`, `__pycache__`, and `.git`.
+2. **STEP 2 Fix 2**: Fix `coffee_shop_frontend/Dockerfile` by creating `public/` directory with `.gitkeep` and supporting standalone Next.js build.
+3. **STEP 2 Fix 3**: Optimize Dockerfile layer caching and image footprint across backend services and frontend.
 
 ## Dependencies Added / Removed
 - None (zero global packages installed).
