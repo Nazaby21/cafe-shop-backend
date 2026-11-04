@@ -282,13 +282,62 @@ docker compose -f docker-compose.local.yml exec kong kong reload
 
 ---
 
-## 7. Troubleshooting Guide
+## 7. Docker Desktop Operations & GUI Runbook
 
-| Issue | Root Cause | Solution |
+### 7.1 Recommended Resource Allocation
+In Docker Desktop settings (`Settings` > `Resources` > `Advanced`):
+- **CPUs**: Minimum 4 cores (recommended 6 cores if available on host).
+- **Memory**: Minimum 6 GB (recommended 8 GB for full compose stack + Next.js build cache).
+- **Swap**: 2 GB.
+- **Virtual Disk Limit**: Minimum 64 GB available on host drive hosting WSL2 `ext4.vhdx`.
+
+### 7.2 Confirming the WSL2 Backend
+To verify that Docker Desktop is leveraging the lightweight WSL2 Linux subsystem rather than legacy Hyper-V:
+1. In Docker Desktop, open **Settings** (`gear icon`) > **General**.
+2. Ensure **"Use the WSL 2 based engine"** is checked.
+3. Open Windows PowerShell and run:
+   ```powershell
+   wsl -l -v
+   ```
+   Confirm `docker-desktop` and `docker-desktop-data` are present with **VERSION 2** and State **Running**.
+
+### 7.3 Docker Desktop GUI Navigation
+- **Containers View**: Click the **Containers** tab in Docker Desktop sidebar. Locate the `coffee-shop-local` group. Each container (`coffee_local_frontend`, `coffee_local_kong`, `coffee_local_postgres`, `coffee_local_user_service`, `coffee_local_operation_service`, `coffee_local_report_service`) displays real-time CPU/memory metrics and a green `healthy` indicator.
+- **Viewing Real-time Logs**: Click on any individual container name to open its real-time log stream. Use the search bar in the top right to filter for error codes (`401`, `429`, `500`) or tracebacks.
+- **Container Terminal / Exec**: Click the **Exec** tab within any container view to open an interactive bash/sh shell inside the running microservice without needing external CLI tools.
+- **Inspecting Container Details**: Click the **Inspect** tab to view low-level JSON configuration: assigned bridge IP (`172.x.x.x`), environment variables, health check commands, and mounted host volumes.
+
+### 7.4 Rebuilding a Single Service
+During active development, rebuild only the service you modified without tearing down the entire environment:
+
+```powershell
+# Rebuild a single backend microservice (e.g. user-service)
+docker compose -f docker-compose.local.yml build user-service
+docker compose -f docker-compose.local.yml up -d --no-deps user-service
+
+# Rebuild frontend container
+docker compose -f docker-compose.local.yml build frontend
+docker compose -f docker-compose.local.yml up -d --no-deps frontend
+
+# Force clean rebuild without Docker cache
+docker compose -f docker-compose.local.yml build --no-cache operation-service
+```
+
+---
+
+## 8. Troubleshooting Guide
+
+| Issue / Error | Root Cause | Solution |
 | :--- | :--- | :--- |
-| **`Bind for 127.0.0.1:5432 failed: port is already allocated`** | Local PostgreSQL or Windows service running on port 5432. | Run `netstat -ano \| findstr :5432`, stop Windows service via `services.msc` or terminate PID. |
+| **`failed to calculate checksum ... "/app/public": not found`** | Next.js `Dockerfile` copied `/app/public` in stage 3, but the repo lacked the directory in git. | Added `coffee_shop_frontend/public/.gitkeep` and `mkdir -p /app/public` in builder stage. |
+| **`manifest for kong:3.9-alpine not found`** | `kong:3.9-alpine` does not exist on Docker Hub (official 3.9 images are Ubuntu/Debian). | Changed image tag in `docker-compose.local.yml` to `kong:3.9`. |
+| **Docker context transfer takes 30-60+ seconds (50MB+ transfer)** | Missing root `.dockerignore` files causing `.venv/`, `node_modules/`, and `.git/` to transfer to daemon. | Added `coffee_shop/.dockerignore` and `coffee_shop_frontend/.dockerignore`, cutting transfer to < 50kB (99.9% reduction). |
+| **`Bind for 127.0.0.1:5432 failed: port is already allocated`** | Local Windows PostgreSQL service or another program is occupying port 5432 (e.g. PID 8544). | Made port configurable via `127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432`. Pass `$env:POSTGRES_HOST_PORT="5433"`. |
+| **Kong Admin check: `The connection was closed unexpectedly`** | `KONG_ADMIN_LISTEN: 127.0.0.1:8001` restricted Kong to container loopback; host port-forwarding arrived on container `eth0`. | Set `KONG_ADMIN_LISTEN: 0.0.0.0:8001` inside container, keeping host port mapping strictly bound to loopback `127.0.0.1:8001:8001`. |
+| **PowerShell smoke test hangs on CORS OPTIONS check** | PowerShell 5.1 `Invoke-WebRequest` initializes Internet Explorer DOM parser on empty OPTIONS response. | Added `-UseBasicParsing` to all `Invoke-WebRequest` commands in `scripts/smoke.ps1`. |
+| **PowerShell query string bug: sends `%3Dpaid` instead of `status=paid`** | In PowerShell, `?` is treated as part of variable name (`$md5_1?status`), evaluating undefined var to empty string. | Delimited variable name with curly braces: `${md5_1}?status=paid`. |
+| **Frontend container bloat (> 2.6 GB image)** | Production multi-stage build did not use standalone Next.js output and bundled unnecessary devDependencies. | Configured `output: 'standalone'` in Next.js, non-root user `nextjs:nodejs`, and pruned build stages. |
 | **`exec format error` or `bad interpreter: /bin/bash^M`** | Windows CRLF line endings saved in Linux `.sh` shell scripts. | Ensure `.gitattributes` has `*.sh text eol=lf`. Re-save scripts with LF line endings. |
-| **Container exits immediately on startup** | Configuration error, missing env var, or crash. | Check container logs: `docker compose -f docker-compose.local.yml logs <service-name>`. |
 | **Database connection refused during startup** | Services attempting connection before Postgres completes initialization. | Stack enforces `depends_on: postgres: condition: service_healthy` so dependents wait until `pg_isready` passes. |
 | **`CORS error: Response to preflight request doesn't pass access control check`** | Request origin does not match `http://localhost:3000` or credentials sent with wildcard `*`. | Kong CORS plugin is configured with explicit origins (`http://localhost:3000`, `http://127.0.0.1:3000`) and `credentials: true`. |
 | **HTTP 502 Bad Gateway from Kong** | Upstream FastAPI microservice is stopped, crashed, or restarting. | Check `.\scripts\logs.ps1 <service>` to see the Python exception. |
@@ -298,7 +347,7 @@ docker compose -f docker-compose.local.yml exec kong kong reload
 
 ---
 
-## 8. Clean Reset and Teardown
+## 9. Clean Reset and Teardown
 
 ```powershell
 # Standard Teardown: Stops containers, keeps all database data
@@ -311,7 +360,7 @@ docker compose -f docker-compose.local.yml exec kong kong reload
 
 ---
 
-## 9. Transitioning to Cloud / EC2 Deployment
+## 10. Transitioning to Cloud / EC2 Deployment
 When ready to deploy this stack to a cloud VM (such as AWS EC2 Ubuntu LTS):
 1. Review the archived runbook: [`docs/EC2_SETUP_GUIDE.md`](./EC2_SETUP_GUIDE.md).
 2. Key differences:
