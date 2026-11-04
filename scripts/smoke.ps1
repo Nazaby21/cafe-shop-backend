@@ -76,7 +76,7 @@ Write-Header "2. Protected Routes (401 vs 200)"
 
 # Verify 401 Unauthorized without token
 try {
-    $unauth = Invoke-WebRequest -Uri "$GatewayUrl/api/auth/me" -Method Get -TimeoutSec 10
+    $unauth = Invoke-WebRequest -UseBasicParsing -Uri "$GatewayUrl/api/auth/me" -Method Get -TimeoutSec 10
     Write-Fail "GET /api/auth/me without token returned HTTP $($unauth.StatusCode); expected 401"
 } catch {
     if ($_.Exception.Response.StatusCode.value__ -eq 401) {
@@ -176,7 +176,7 @@ if (-not $SkipRateLimit) {
 Write-Header "4. CORS Preflight (OPTIONS)"
 
 try {
-    $corsResp = Invoke-WebRequest -Uri "$GatewayUrl/api/products" -Method Options -Headers @{
+    $corsResp = Invoke-WebRequest -UseBasicParsing -Uri "$GatewayUrl/api/products" -Method Options -Headers @{
         "Origin" = "http://localhost:3000";
         "Access-Control-Request-Method" = "POST";
         "Access-Control-Request-Headers" = "Authorization,Content-Type";
@@ -216,7 +216,7 @@ foreach ($internalPort in @(8002, 8003)) {
 
 # Check that unmapped path through Kong returns 404
 try {
-    $unmapped = Invoke-WebRequest -Uri "$GatewayUrl/non-existent-secret-internal-endpoint" -Method Get -TimeoutSec 5
+    $unmapped = Invoke-WebRequest -UseBasicParsing -Uri "$GatewayUrl/non-existent-secret-internal-endpoint" -Method Get -TimeoutSec 5
     Write-Fail "Unmapped path returned HTTP $($unmapped.StatusCode); expected 404"
 } catch {
     if ($_.Exception.Response.StatusCode.value__ -eq 404) {
@@ -239,7 +239,7 @@ try {
         Write-Fail "Kong Admin API returned unexpected response: $($adminRes | ConvertTo-Json -Compress)"
     }
 } catch {
-    Write-Fail "Kong Admin API connection failed on $AdminApiUrl: $_"
+    Write-Fail "Kong Admin API connection failed on ${AdminApiUrl}: $_"
 }
 
 # -----------------------------------------------------------------------------
@@ -260,7 +260,7 @@ if ($jwtToken) {
         }
 
         # Simulate settlement -> PAID
-        $settle1 = Invoke-RestMethod -Uri "$GatewayUrl/api/payments/mock-pay/$md5_1?status=paid" -Method Post -TimeoutSec 10
+        $settle1 = Invoke-RestMethod -Uri "$GatewayUrl/api/payments/mock-pay/${md5_1}?status=paid" -Method Post -TimeoutSec 10
         if ($settle1.data.status -eq "paid") {
             Write-Pass "Flow 1: Mock-pay successfully transitioned payment to PAID"
         } else {
@@ -278,7 +278,7 @@ if ($jwtToken) {
         $pay2 = Invoke-RestMethod -Uri "$GatewayUrl/api/orders/$orderId2/payment" -Method Post -Body '{"method":"khqr","currency":"USD"}' -ContentType "application/json" -Headers @{"Authorization"="Bearer $jwtToken"} -TimeoutSec 10
         $md5_2 = $pay2.data.qr_md5
 
-        $expire2 = Invoke-RestMethod -Uri "$GatewayUrl/api/payments/mock-pay/$md5_2?status=expired" -Method Post -TimeoutSec 10
+        $expire2 = Invoke-RestMethod -Uri "$GatewayUrl/api/payments/mock-pay/${md5_2}?status=expired" -Method Post -TimeoutSec 10
         if ($expire2.data.status -eq "expired") {
             Write-Pass "Flow 2: Mock-pay successfully transitioned payment to EXPIRED"
         } else {
@@ -296,7 +296,7 @@ if ($jwtToken) {
         $pay3 = Invoke-RestMethod -Uri "$GatewayUrl/api/orders/$orderId3/payment" -Method Post -Body '{"method":"khqr","currency":"USD"}' -ContentType "application/json" -Headers @{"Authorization"="Bearer $jwtToken"} -TimeoutSec 10
         $md5_3 = $pay3.data.qr_md5
 
-        $fail3 = Invoke-RestMethod -Uri "$GatewayUrl/api/payments/mock-pay/$md5_3?status=failed" -Method Post -TimeoutSec 10
+        $fail3 = Invoke-RestMethod -Uri "$GatewayUrl/api/payments/mock-pay/${md5_3}?status=failed" -Method Post -TimeoutSec 10
         if ($fail3.data.status -eq "failed") {
             Write-Pass "Flow 3: Mock-pay successfully transitioned payment to FAILED"
         } else {
