@@ -18,28 +18,50 @@ As required by the project safety guidelines, directory scan of `D:\Study\Year-4
 ---
 
 ## Block Tracking & Step Execution Status
-- **Current Step**: STEP 2 COMPLETED -> STARTING STEP 3 (BUG HUNT)
+- **Current Step**: STEP 5 COMPLETED (ALL STEPS COMPLETED)
 - **Step 0 Completed**: `2026-11-03T19:33:00+07:00`
 - **Step 1 Completed**: `2026-11-04T01:41:00+07:00`
 - **Step 2 Completed**: `2026-11-04T01:50:00+07:00`
-- **Output Artifacts**: `docs/09_DOCKER_BUILD_REPORT.md`, `docs/10_BUG_REPORT.md` (Starting), `docs/build-logs/*.log`
+- **Step 3 Completed**: `2026-11-04T02:00:00+07:00`
+- **Step 4 Completed**: `2026-11-04T02:05:00+07:00`
+- **Step 5 Completed**: `2026-11-04T07:40:00+07:00`
+- **Output Artifacts**: 
+  - `docs/09_DOCKER_BUILD_REPORT.md`
+  - `docs/build-logs/*.log`
+  - `docs/10_BUG_REPORT.md`
+  - `docs/CLEANUP_REPORT.md`
+  - `docs/LOCAL_DOCKER_GUIDE.md`
+  - `docs/PROGRESS.md`
+  - `docs/OPEN_QUESTIONS.md`
+  - `docs/FINAL_SUMMARY_FIXES.md`
 
-### Step 2 Docker Build Fix Summary
-- **Context Bloat & Secret Leak Fixed**: Added `.dockerignore` to `coffee_shop/` and `coffee_shop_frontend/`. Blocked `.env*`, `.venv`, `node_modules`, `__pycache__`, `.git`. Reduced context transfer from 12-58 MB down to 2-45 kB.
-- **Production Build Failure Resolved**: Fixed `coffee_shop_frontend/Dockerfile` by creating `public/.gitkeep` and adding defensive `mkdir -p /app/public`.
-- **Python Image Footprint Slashed**: Removed unneeded `gcc` and `libpq-dev` (since `psycopg2-binary` precompiled wheels are used). Slashed image sizes from 576-642 MB down to 293 MB each (-50%).
-- **Security Hardening**: Configured non-root user `nextjs:1001` in production frontend runner stage.
-- **Full Stack Validation**: Both `docker-compose.local.yml` and `docker-compose.yml` build with 0 errors.
+### Step 5 Final Verification Results
+- **Clean Docker Build**: Both `docker-compose.local.yml` and `docker-compose.yml` build cleanly with 0 errors.
+- **Compose Stack Health**: All 6 containers (`frontend`, `kong`, `postgres`, `user-service`, `operation-service`, `report-service`) brought up and verified `healthy`.
+- **Smoke Test Suite (`scripts/smoke.ps1`)**:
+  - Public routes: 2/2 PASS (GET /health, GET /api/products)
+  - Protected routes: 4/4 PASS (401 without token, registration, login JWT, 200 with token)
+  - Rate limiting: 1/1 PASS (HTTP 429 burst enforcement)
+  - CORS preflight: 1/1 PASS (OPTIONS Access-Control-Allow-Origin: http://localhost:3000)
+  - Perimeter isolation: 3/3 PASS (Internal ports 8002 & 8003 blocked from host; unmapped route 404)
+  - Kong Admin API: 1/1 PASS (Reachable on 127.0.0.1:8001 loopback)
+  - Mock payments: 4/4 PASS (KHQR generation, settlement to PAID, EXPIRED, FAILED)
+  - **Overall**: 16/16 tests PASSED (100% success rate, 0 failures).
+- **Backend Unit Tests**: 23/23 unit tests pass across `user_service`, `operation_service`, `report_service`.
+- **Frontend Code Quality**:
+  - `npm run lint`: 0 errors.
+  - `npm run type-check`: 0 errors.
+  - `npm run build`: Production Next.js build succeeds with static pages generated.
 
 ---
 
-## Next 3 Tasks
-1. **STEP 3 Batch 1 - Backend Bug Audit**: Run `ruff check` and `pytest` across `user_service`, `operation_service`, `report_service`, `libs`. Audit for blocking calls, unhandled exceptions, timezone-naive datetimes, and DB session leaks.
-2. **STEP 3 Batch 2 - Frontend Bug Audit**: Run `npm run lint` and `npx tsc --noEmit` in `coffee_shop_frontend`. Audit for hydration mismatches, unhandled promise rejections, and stale polling intervals.
-3. **STEP 3 Batch 3 - Gateway & Config Audit**: Validate `kong.yml` route `strip_path` settings against backend router prefixes, CORS configurations, and environment variable bindings.
+## Next Tasks
+All prompt phases (Step 0 through Step 5) and deliverables are completed. Ready for user code review.
 
 ## Dependencies Added / Removed
-- None (zero global packages installed).
+- Removed rogue virtual environment package: `MyApplication 0.1.0` (uninstalled via pip).
+- Cleaned duplicate dependency in `requirements-dev.txt`.
+- No extraneous global dependencies added.
 
 ## Blocked Items
-- Host port 5432 conflict: PID 8544 (`postgres.exe`) is running locally on Windows. Per safety rules ("Do not kill any process"), this process will not be terminated. Compose PostgreSQL port binding may need loopback alternate (e.g. `127.0.0.1:5433:5432`) or documentation in `OPEN_QUESTIONS.md`.
+- Resolved: Host port 5432 conflict was resolved cleanly by exposing `127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432`, allowing developers to set `POSTGRES_HOST_PORT=5433` without killing local host processes.

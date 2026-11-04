@@ -74,3 +74,17 @@
 - **Decision**: All published ports in `docker-compose.local.yml` explicitly bind to `127.0.0.1` (`127.0.0.1:8000:8000`, `127.0.0.1:8001:8001`, `127.0.0.1:5432:5432`, `127.0.0.1:3000:3000`). Internal microservices publish NO host ports.
 - **Outcome**: Strict local developer security perimeter with zero external LAN attack surface.
 
+### Q15: Host Port 5432 Collision with Local Windows PostgreSQL Service
+- **Problem**: Developer workstations frequently run a native Windows PostgreSQL service on default port 5432 (e.g., PID 8544 `postgres.exe`), causing `docker compose up` to crash with `port is already allocated`.
+- **Decision**: Made the host-exposed PostgreSQL port configurable via `127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432`.
+- **Outcome**: Developers with an active host Postgres service can export `$env:POSTGRES_HOST_PORT="5433"` to avoid collisions without terminating host services.
+
+### Q16: Kong Admin API Listen Address: Container Interface vs Host Port
+- **Problem**: Setting `KONG_ADMIN_LISTEN: 127.0.0.1:8001` inside the container causes Kong to bind strictly to the container's private loopback interface (`lo`). Docker's port-forwarding proxy forwards traffic from host `127.0.0.1:8001` across the Docker bridge network to the container's `eth0` interface (`172.x.x.x`), which Kong dropped immediately with "connection closed unexpectedly".
+- **Decision**: Bound `KONG_ADMIN_LISTEN: 0.0.0.0:8001` inside the container, while preserving host perimeter security by binding Compose ports to `127.0.0.1:8001:8001`.
+- **Outcome**: Host loopback access to Kong Admin is fully functional, while external LAN access remains strictly blocked by Docker.
+
+### Q17: Catalog Seeding for E2E / Smoke Testing
+- **Problem**: In fresh database deployments, `products` table contains 0 records, causing order creation tests (`POST /api/orders`) to fail with HTTP 404 `Product not found`.
+- **Decision**: The smoke test validates public catalog accessibility (`GET /api/products`). For fresh databases, an initial catalog entry (e.g. Espresso) is seeded, ensuring end-to-end checkout and Bakong KHQR settlement flows execute deterministically.
+
